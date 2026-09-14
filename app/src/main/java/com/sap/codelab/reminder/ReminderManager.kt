@@ -24,6 +24,10 @@ internal class ReminderManager(
 
     private val operationMutex = Mutex()
 
+    suspend fun persistMemo(memo: Memo): Long = operationMutex.withLock {
+        memoRepository.insert(memo)
+    }
+
     suspend fun createMemo(memo: Memo): MemoCreationResult = operationMutex.withLock {
         val memoId = memoRepository.insert(memo)
         val savedMemo = memo.copy(id = memoId)

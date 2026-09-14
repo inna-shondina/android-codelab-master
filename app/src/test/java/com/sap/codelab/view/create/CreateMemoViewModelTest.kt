@@ -102,6 +102,7 @@ internal class CreateMemoViewModelTest {
             assertNotNull(savedMemoId)
             assertEquals(MemoSaveStage.AWAITING_PERMISSIONS, original.uiState.value.saveStage)
             assertEquals(1, repository.size)
+            assertEquals(ReminderStatus.PENDING, repository.memo(savedMemoId)?.reminderStatus)
             original.onPermissionRequestLaunched()
 
             val restored = CreateMemoViewModel(manager, savedState)
@@ -127,6 +128,8 @@ internal class CreateMemoViewModelTest {
 
         val size: Int
             get() = memos.size
+
+        fun memo(id: Long?): Memo? = id?.let(memos::get)
 
         override fun observeAll(): Flow<List<Memo>> = all
 

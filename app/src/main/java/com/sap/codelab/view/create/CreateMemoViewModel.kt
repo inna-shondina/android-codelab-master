@@ -58,7 +58,7 @@ internal class CreateMemoViewModel(
         pendingDraft = null
         viewModelScope.launch {
             runCatching {
-                reminderManager.createMemo(
+                reminderManager.persistMemo(
                     Memo(
                         title = draft.title,
                         description = draft.description,
@@ -66,16 +66,12 @@ internal class CreateMemoViewModel(
                         reminderLongitude = draft.location.longitude
                     )
                 )
-            }.onSuccess { result ->
+            }.onSuccess { memoId ->
                 updateState {
                     it.copy(
-                        savedMemoId = result.memoId,
-                        savedReminderStatus = result.reminderStatus,
-                        saveStage = if (result.reminderStatus == ReminderStatus.PERMISSION_REQUIRED) {
-                            MemoSaveStage.AWAITING_PERMISSIONS
-                        } else {
-                            MemoSaveStage.COMPLETED
-                        }
+                        savedMemoId = memoId,
+                        savedReminderStatus = ReminderStatus.PENDING,
+                        saveStage = MemoSaveStage.AWAITING_PERMISSIONS
                     )
                 }
             }.onFailure {
