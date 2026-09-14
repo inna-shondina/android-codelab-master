@@ -10,7 +10,7 @@ import com.sap.codelab.model.ReminderStatus
 /**
  * That database that is used to store information.
  */
-@Database(entities = [Memo::class], version = 3, exportSchema = false)
+@Database(entities = [Memo::class], version = 3, exportSchema = true)
 @TypeConverters(DatabaseConverters::class)
 internal abstract class Database : RoomDatabase() {
 
