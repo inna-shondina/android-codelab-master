@@ -46,14 +46,14 @@ internal class CreateMemo : AppCompatActivity() {
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             requestRemainingPermissions()
         } else {
-            savePreparedMemo()
+            completePermissionFlow()
         }
     }
 
     private val backgroundPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) requestRemainingPermissions() else savePreparedMemo()
+        if (isGranted) requestRemainingPermissions() else completePermissionFlow()
     }
 
     private val settingsLauncher = registerForActivityResult(
@@ -62,18 +62,19 @@ internal class CreateMemo : AppCompatActivity() {
         if (permissionChecker.hasBackgroundLocationPermission()) {
             requestRemainingPermissions()
         } else {
-            savePreparedMemo()
+            completePermissionFlow()
         }
     }
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
-        savePreparedMemo()
+        completePermissionFlow()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        isPermissionFlowActive = savedInstanceState?.getBoolean(PERMISSION_FLOW_ACTIVE_KEY) == true
         enableEdgeToEdgeLayout()
         binding = ActivityCreateMemoBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -133,9 +134,8 @@ internal class CreateMemo : AppCompatActivity() {
             )
             locationError.visibility = if (errors.hasLocationError) View.VISIBLE else View.GONE
             if (!errors.hasErrors) {
-                isPermissionFlowActive = true
                 updateSaveAction()
-                requestRequiredPermissions()
+                model.savePreparedMemo()
             }
         }
     }
@@ -158,8 +158,8 @@ internal class CreateMemo : AppCompatActivity() {
                 .setTitle(R.string.location_permission_title)
                 .setMessage(R.string.location_permission_rationale)
                 .setPositiveButton(R.string.continue_action) { _, _ -> request() }
-                .setNegativeButton(R.string.save_without_reminder) { _, _ -> savePreparedMemo() }
-                .setOnCancelListener { savePreparedMemo() }
+                .setNegativeButton(R.string.save_without_reminder) { _, _ -> completePermissionFlow() }
+                .setOnCancelListener { completePermissionFlow() }
                 .show()
         } else {
             request()
@@ -175,7 +175,7 @@ internal class CreateMemo : AppCompatActivity() {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
 
-            else -> savePreparedMemo()
+            else -> completePermissionFlow()
         }
     }
 
@@ -184,8 +184,8 @@ internal class CreateMemo : AppCompatActivity() {
             .setTitle(R.string.background_location_permission_title)
             .setMessage(R.string.background_location_permission_rationale)
             .setPositiveButton(R.string.open_settings) { _, _ -> requestBackgroundLocation() }
-            .setNegativeButton(R.string.save_without_reminder) { _, _ -> savePreparedMemo() }
-            .setOnCancelListener { savePreparedMemo() }
+            .setNegativeButton(R.string.save_without_reminder) { _, _ -> completePermissionFlow() }
+            .setOnCancelListener { completePermissionFlow() }
             .show()
     }
 
@@ -202,10 +202,10 @@ internal class CreateMemo : AppCompatActivity() {
         }
     }
 
-    private fun savePreparedMemo() {
+    private fun completePermissionFlow() {
         isPermissionFlowActive = false
         updateSaveAction()
-        model.savePreparedMemo()
+        model.activateSavedMemo()
     }
 
     private fun observeUiState() {
@@ -221,7 +221,14 @@ internal class CreateMemo : AppCompatActivity() {
                         )
                         binding.contentCreateMemo.locationError.visibility = View.GONE
                     }
-                    if (state.savedMemoId != null) {
+                    if (
+                        state.saveStage == MemoSaveStage.AWAITING_PERMISSIONS &&
+                        !isPermissionFlowActive
+                    ) {
+                        isPermissionFlowActive = true
+                        updateSaveAction()
+                        requestRequiredPermissions()
+                    } else if (state.saveStage == MemoSaveStage.COMPLETED) {
                         when (state.savedReminderStatus) {
                             ReminderStatus.PERMISSION_REQUIRED -> showToast(R.string.memo_saved_permission_required)
                             ReminderStatus.ERROR -> showToast(R.string.memo_saved_reminder_error)
@@ -239,7 +246,7 @@ internal class CreateMemo : AppCompatActivity() {
     }
 
     private fun isSaveEnabled(): Boolean =
-        !isPermissionFlowActive && !model.uiState.value.isSaving
+        !isPermissionFlowActive && model.uiState.value.saveStage == MemoSaveStage.EDITING
 
     private fun updateSaveAction() {
         saveMenuItem?.isEnabled = isSaveEnabled()
@@ -285,6 +292,7 @@ internal class CreateMemo : AppCompatActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(PERMISSION_FLOW_ACTIVE_KEY, isPermissionFlowActive)
         locationPicker.onSaveInstanceState(outState)
         super.onSaveInstanceState(outState)
     }
@@ -299,3 +307,5 @@ internal class CreateMemo : AppCompatActivity() {
         super.onDestroy()
     }
 }
+
+private const val PERMISSION_FLOW_ACTIVE_KEY = "permissionFlowActive"

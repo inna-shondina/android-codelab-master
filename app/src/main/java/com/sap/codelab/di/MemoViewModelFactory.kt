@@ -2,6 +2,7 @@ package com.sap.codelab.di
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.sap.codelab.repository.MemoRepository
 import com.sap.codelab.reminder.ReminderManager
@@ -18,7 +19,7 @@ internal class MemoViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
         return when {
             modelClass.isAssignableFrom(CreateMemoViewModel::class.java) ->
-                CreateMemoViewModel(reminderManager) as T
+                CreateMemoViewModel(reminderManager, extras.createSavedStateHandle()) as T
 
             modelClass.isAssignableFrom(HomeViewModel::class.java) ->
                 HomeViewModel(memoRepository, reminderManager) as T

@@ -31,6 +31,14 @@ internal class ReminderManager(
         MemoCreationResult(memoId, status)
     }
 
+    suspend fun activateMemo(memoId: Long): ReminderStatus = operationMutex.withLock {
+        val memo = requireNotNull(memoRepository.getMemoById(memoId)) {
+            "Memo $memoId no longer exists"
+        }
+        if (memo.isDone) return@withLock memo.reminderStatus
+        register(memo)
+    }
+
     suspend fun markDone(memoId: Long) = operationMutex.withLock {
         scheduler.cancel(memoId)
         memoRepository.markDone(memoId)

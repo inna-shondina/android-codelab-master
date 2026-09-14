@@ -1,5 +1,6 @@
 package com.sap.codelab.view.create
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sap.codelab.location.GeoPoint
@@ -16,16 +17,17 @@ import kotlinx.coroutines.launch
  * ViewModel for matching CreateMemo view. Handles user interactions.
  */
 internal class CreateMemoViewModel(
-    private val reminderManager: ReminderManager
+    private val reminderManager: ReminderManager,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private var pendingDraft: MemoDraft? = null
 
-    private val _uiState = MutableStateFlow(CreateMemoUiState())
+    private val _uiState = MutableStateFlow(savedStateHandle.restoreUiState())
     val uiState: StateFlow<CreateMemoUiState> = _uiState.asStateFlow()
 
     fun selectLocation(location: GeoPoint) {
-        _uiState.update { it.copy(selectedLocation = location, saveError = null) }
+        updateState { it.copy(selectedLocation = location, saveError = null) }
     }
 
     fun prepareMemo(title: String, description: String): MemoValidationErrors {
@@ -43,9 +45,11 @@ internal class CreateMemoViewModel(
 
     fun savePreparedMemo() {
         val draft = pendingDraft ?: return
-        if (_uiState.value.isSaving) return
+        if (_uiState.value.saveStage != MemoSaveStage.EDITING) return
 
-        _uiState.update { it.copy(isSaving = true, saveError = null) }
+        updateState {
+            it.copy(saveStage = MemoSaveStage.PERSISTING, saveError = null)
+        }
         pendingDraft = null
         viewModelScope.launch {
             runCatching {
@@ -58,31 +62,81 @@ internal class CreateMemoViewModel(
                     )
                 )
             }.onSuccess { result ->
-                _uiState.update {
+                updateState {
                     it.copy(
-                        isSaving = false,
                         savedMemoId = result.memoId,
-                        savedReminderStatus = result.reminderStatus
+                        savedReminderStatus = result.reminderStatus,
+                        saveStage = if (result.reminderStatus == ReminderStatus.PERMISSION_REQUIRED) {
+                            MemoSaveStage.AWAITING_PERMISSIONS
+                        } else {
+                            MemoSaveStage.COMPLETED
+                        }
                     )
                 }
             }.onFailure {
-                _uiState.update { state -> state.copy(isSaving = false, saveError = true) }
+                updateState { state ->
+                    state.copy(saveStage = MemoSaveStage.EDITING, saveError = true)
+                }
             }
         }
     }
 
+    fun activateSavedMemo() {
+        val memoId = _uiState.value.savedMemoId ?: return
+        if (_uiState.value.saveStage != MemoSaveStage.AWAITING_PERMISSIONS) return
+
+        updateState {
+            it.copy(saveStage = MemoSaveStage.ACTIVATING, saveError = null)
+        }
+        viewModelScope.launch {
+            runCatching { reminderManager.activateMemo(memoId) }
+                .onSuccess { status ->
+                    updateState {
+                        it.copy(
+                            savedReminderStatus = status,
+                            saveStage = MemoSaveStage.COMPLETED
+                        )
+                    }
+                }
+                .onFailure {
+                    updateState { state ->
+                        state.copy(
+                            savedReminderStatus = ReminderStatus.ERROR,
+                            saveStage = MemoSaveStage.COMPLETED
+                        )
+                    }
+                }
+        }
+    }
+
     fun onSaveErrorShown() {
-        _uiState.update { it.copy(saveError = null) }
+        updateState { it.copy(saveError = null) }
+    }
+
+    private fun updateState(transform: (CreateMemoUiState) -> CreateMemoUiState) {
+        _uiState.update(transform)
+        savedStateHandle.persist(_uiState.value)
     }
 }
 
 internal data class CreateMemoUiState(
     val selectedLocation: GeoPoint? = null,
-    val isSaving: Boolean = false,
     val savedMemoId: Long? = null,
     val savedReminderStatus: ReminderStatus? = null,
+    val saveStage: MemoSaveStage = MemoSaveStage.EDITING,
     val saveError: Boolean? = null
-)
+) {
+    val isSaving: Boolean
+        get() = saveStage == MemoSaveStage.PERSISTING || saveStage == MemoSaveStage.ACTIVATING
+}
+
+internal enum class MemoSaveStage {
+    EDITING,
+    PERSISTING,
+    AWAITING_PERMISSIONS,
+    ACTIVATING,
+    COMPLETED
+}
 
 private data class MemoDraft(
     val title: String,
@@ -98,3 +152,38 @@ internal data class MemoValidationErrors(
     val hasErrors: Boolean
         get() = hasTitleError || hasDescriptionError || hasLocationError
 }
+
+private const val SELECTED_LATITUDE_KEY = "selectedLatitude"
+private const val SELECTED_LONGITUDE_KEY = "selectedLongitude"
+private const val SAVED_MEMO_ID_KEY = "savedMemoId"
+private const val REMINDER_STATUS_KEY = "savedReminderStatus"
+private const val SAVE_STAGE_KEY = "saveStage"
+
+private fun SavedStateHandle.restoreUiState(): CreateMemoUiState {
+    val latitude = get<Double>(SELECTED_LATITUDE_KEY)
+    val longitude = get<Double>(SELECTED_LONGITUDE_KEY)
+    return CreateMemoUiState(
+        selectedLocation = if (latitude != null && longitude != null) {
+            GeoPoint(latitude, longitude)
+        } else {
+            null
+        },
+        savedMemoId = get(SAVED_MEMO_ID_KEY),
+        savedReminderStatus = get<String>(REMINDER_STATUS_KEY)
+            ?.toEnumOrNull<ReminderStatus>(),
+        saveStage = get<String>(SAVE_STAGE_KEY)
+            ?.toEnumOrNull<MemoSaveStage>()
+            ?: MemoSaveStage.EDITING
+    )
+}
+
+private fun SavedStateHandle.persist(state: CreateMemoUiState) {
+    this[SELECTED_LATITUDE_KEY] = state.selectedLocation?.latitude
+    this[SELECTED_LONGITUDE_KEY] = state.selectedLocation?.longitude
+    this[SAVED_MEMO_ID_KEY] = state.savedMemoId
+    this[REMINDER_STATUS_KEY] = state.savedReminderStatus?.name
+    this[SAVE_STAGE_KEY] = state.saveStage.name
+}
+
+private inline fun <reified T : Enum<T>> String.toEnumOrNull(): T? =
+    enumValues<T>().firstOrNull { it.name == this }
