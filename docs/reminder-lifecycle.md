@@ -33,6 +33,8 @@ stateDiagram-v2
 
 ## Creating a memo inside its radius
 
+The app commits the memo to Room before opening a runtime permission dialog or the system Settings screen. The memo ID, selected point, and creation stage are mirrored in `SavedStateHandle`; after process recreation, permission completion activates the existing row rather than attempting another insert. A denied permission leaves the persisted row in `PERMISSION_REQUIRED`.
+
 After all required permissions are available, the app asks Android for a current GPS fix before registering the proximity alert. If that fix is within the inclusive 200-metre radius, the memo is persisted as `WAITING_FOR_EXIT`.
 
 An initial `ENTER` event is ignored in this state. The first `EXIT` event changes the state to `ACTIVE` without removing the platform alert. A later `ENTER` publishes the notification, changes the state to `TRIGGERED`, and removes the one-shot alert.
@@ -46,11 +48,13 @@ If Android cannot provide a current fix within five seconds, the reminder is arm
 - `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` are reevaluated against the current position when registration is retried.
 - `TRIGGERED`, `INACTIVE`, and completed memos are not registered.
 
-Restoration runs when the application process is created, when the home screen resumes, after `BOOT_COMPLETED`, and after `MY_PACKAGE_REPLACED`. If required permissions are missing, registration cancels any existing platform alert and persists `PERMISSION_REQUIRED`; this state is distinct from the permanent legacy `INACTIVE` state.
+Process-start, `BOOT_COMPLETED`, and `MY_PACKAGE_REPLACED` restoration is enqueued as unique WorkManager work, so a slow Room query or location lookup does not consume a `BroadcastReceiver` execution deadline. The home screen also performs an in-process retry when it resumes.
+
+A batch takes at most one current GPS fix for all reminders that require position reevaluation. That lookup happens outside the mutex used for persistence and proximity-event transitions; each candidate is loaded again under the mutex before registration so a concurrent completion is not overwritten. If required permissions are missing, registration cancels any existing platform alert and persists `PERMISSION_REQUIRED`; this state is distinct from the permanent legacy `INACTIVE` state.
 
 ## Verification
 
-Local unit tests cover state transitions and restoration. The GPX E2E suite covers both important device flows:
+Local unit tests cover state transitions, single-fix batch restoration, and creation-state recovery. Instrumentation tests exercise v1/v2-to-v3 Room migrations and reused details navigation. The GPX E2E suite covers both important device flows:
 
 1. Start outside, create a memo, enter the radius, and receive one notification.
 2. Start inside, create a memo, verify that no notification is posted, exit the radius, return, and then receive one notification.

@@ -25,13 +25,13 @@ The map uses MapLibre Native with OpenStreetMap raster tiles. OpenStreetMap attr
 ## User flow
 
 1. Create a memo and tap the map to select a location.
-2. Save the memo. Title, description, and location are mandatory.
+2. Save the memo. Title, description, and location are mandatory. The memo is committed to Room before Android opens any external permission UI.
 3. Grant precise location, background location, and notification permissions. Android 11+ opens the app settings for background access, because the system no longer offers “Allow all the time” in the normal runtime dialog.
 4. Android registers a platform proximity alert with a 200-metre radius. If the memo is created inside that radius, it waits for the user to leave before becoming active.
 5. On the first enter event after the reminder is active, the app posts a notification containing the memo title and the first 140 Unicode code points of its description, then completes and removes the reminder.
 6. Selecting a memo opens its details. The standard Toolbar navigation action closes the details and returns to the list.
 
-If a permission is declined, the memo is still saved with the `PERMISSION_REQUIRED` status. `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` reminders are reevaluated when the process starts or the home screen resumes. `WAITING_FOR_EXIT` and `ACTIVE` alerts are restored without changing their state. Migrated `INACTIVE` memos have no real reminder location and are intentionally never registered.
+If a permission is declined, the memo remains saved with the `PERMISSION_REQUIRED` status and no proximity alert is scheduled. The saved memo ID, selected point, and creation stage are kept in `SavedStateHandle`, so process recreation while the user is in Settings resumes activation instead of inserting a duplicate. `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` reminders are reevaluated when the process starts or the home screen resumes. `WAITING_FOR_EXIT` and `ACTIVE` alerts are restored without changing their state. Migrated `INACTIVE` memos have no real reminder location and are intentionally never registered.
 
 ## Architecture
 
@@ -40,14 +40,15 @@ If a permission is declined, the memo is still saved with the `PERMISSION_REQUIR
 - `SystemBarInsets` centralizes edge-to-edge handling: AppBars consume the top inset, while screen content and floating controls avoid side cutouts and the navigation bar.
 - `AppContainer` is the composition root. It uses constructor injection and a small ViewModel factory instead of adding a DI framework for this object graph.
 - `ReminderManager` owns the reminder state machine and coordinates persistence, scheduling, and notification delivery.
+- Boot, app-update, and process-start restoration is delegated to unique WorkManager work, keeping long database/location operations outside `BroadcastReceiver` deadlines.
 - `MemoRepository`, `ProximityReminderScheduler`, `MemoNotificationPublisher`, `ReminderPermissionChecker`, `CurrentLocationProvider`, and `LocationPicker` are boundaries around data and platform/third-party code.
 - `MapLibreLocationPicker` is the only class coupled to MapLibre, so the map SDK and tile source can be replaced without changing Activities or ViewModels.
 - `AndroidProximityReminderScheduler` wraps `LocationManager.addProximityAlert`; the feature therefore does not depend on Google Play services.
-- Room stores coordinates as `Double` and includes migrations from the original v1 starter database and the intermediate v2 implementation schema.
+- Room stores coordinates as `Double`, exports its current schema, and includes tested migrations from the original v1 starter database and the intermediate v2 implementation schema.
 
 Memos from the original v1 schema had placeholder `0/0` coordinates, not user-selected locations. The migration therefore preserves them as `INACTIVE` instead of creating false reminders in the Gulf of Guinea. The v2-to-v3 migration normalizes the Room table and preserves a reminder status when that column is present.
 
-Proximity alerts are restored after process creation, device reboot, and app replacement. Marking a memo done cancels its alert. Explicit `PendingIntent`s and unique URI identities prevent reminders from overwriting one another.
+Proximity alerts are restored after process creation, device reboot, and app replacement. A restoration batch requests at most one current location fix and does so outside the reminder-operation mutex. Marking a memo done cancels its alert. Explicit `PendingIntent`s and unique URI identities prevent reminders from overwriting one another, while `ViewMemo.onNewIntent()` refreshes an already-open details screen for the newly selected notification.
 
 ## Assumptions to confirm with product
 
@@ -81,15 +82,24 @@ Run the local checks with:
 ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
 ```
 
-This builds both application and instrumentation-test APKs without requiring an emulator. The reminder coordinator, one-shot transition, permission fallback, Unicode-safe notification preview, and coordinate validation have local unit coverage.
+This builds both application and instrumentation-test APKs without requiring an emulator. The reminder coordinator, one-shot transition, batched restoration, permission fallback, process-safe creation state, Unicode-safe notification preview, and coordinate validation have local unit coverage.
 
 ### Details navigation test
 
-With an emulator or device connected, verify that the Toolbar navigation action closes the memo details screen:
+With an emulator or device connected, verify that the Toolbar navigation action closes the memo details screen and that notification B replaces already-open memo A:
 
 ```shell
 ./gradlew connectedDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.class=com.sap.codelab.view.detail.ViewMemoTest
+```
+
+### Database migration tests
+
+The migration suite creates databases matching the original v1 and intermediate v2 tables, opens them through the production migration chain, and verifies that memo data survives in v3:
+
+```shell
+./gradlew connectedDebugAndroidTest \
+    -Pandroid.testInstrumentationRunnerArguments.class=com.sap.codelab.repository.DatabaseMigrationTest
 ```
 
 ### End-to-end route test
@@ -104,4 +114,4 @@ The suite creates memos through `Home -> CreateMemo`, selects a point in the rea
 
 The script intentionally runs only `LocationReminderE2ETest`; the details navigation test above is separate. If several emulators are running, select one explicitly, for example `ANDROID_SERIAL=emulator-5554 ./scripts/run-e2e.sh`.
 
-The route test grants location and notification permissions, temporarily replaces the emulator GPS provider, and clears this app's notifications. Its `tearDown` restores the GPS provider and mock-location app-op. Run it on an emulator rather than a personal device. The route can also be loaded manually from **Emulator > Extended controls > Location > Routes > Load GPX/KML**.
+The route test grants location permissions plus the notification runtime permission on API 33+, temporarily replaces the emulator GPS provider, and clears this app's notifications. Its `tearDown` restores the GPS provider and mock-location app-op. Run it on an emulator rather than a personal device. The route can also be loaded manually from **Emulator > Extended controls > Location > Routes > Load GPX/KML**.
