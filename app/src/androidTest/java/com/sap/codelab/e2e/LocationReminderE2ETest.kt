@@ -44,6 +44,7 @@ import org.hamcrest.Matcher
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -148,6 +149,54 @@ class LocationReminderE2ETest {
         }
     }
 
+    @Test
+    fun creatingMemoInsideRadius_waitsForExitAndReturn() {
+        val title = "E2E return ${System.currentTimeMillis()}"
+        val description = "Must leave the selected area before the reminder is armed"
+
+        ActivityScenario.launch(Home::class.java).use { scenario ->
+            onView(withId(R.id.fab)).perform(click())
+            onView(withId(R.id.memo_title)).perform(replaceText(title), closeSoftKeyboard())
+            onView(withId(R.id.memo_description)).perform(
+                replaceText(description),
+                closeSoftKeyboard()
+            )
+            onView(withId(R.id.map_host)).perform(selectMapCenter())
+            val playbackRoute = route.endingAt(readSelectedLocation())
+            sendLocation(playbackRoute.last())
+            onView(withId(R.id.action_save)).perform(click())
+
+            val waitingMemo = awaitMemo(title, ReminderStatus.WAITING_FOR_EXIT)
+            createdMemoId = waitingMemo.id
+            assertNull(findNotification(title))
+            onView(withText(R.string.reminder_status_waiting_for_exit))
+                .check(matches(isDisplayed()))
+
+            scenario.moveToState(Lifecycle.State.CREATED)
+            playbackRoute.asReversed().drop(1).forEach { point ->
+                sendLocation(point)
+                SystemClock.sleep(ROUTE_STEP_DELAY_MILLIS)
+            }
+
+            awaitMemo(title, ReminderStatus.ACTIVE)
+            assertNull(findNotification(title))
+
+            playbackRoute.drop(1).forEach { point ->
+                sendLocation(point)
+                SystemClock.sleep(ROUTE_STEP_DELAY_MILLIS)
+            }
+
+            awaitMemo(title, ReminderStatus.TRIGGERED)
+            assertNotNull(awaitNotification(title))
+
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            onView(isRoot()).perform(
+                waitForText(targetContext.getString(R.string.reminder_status_triggered))
+            )
+            onView(withText(R.string.reminder_status_triggered)).check(matches(isDisplayed()))
+        }
+    }
+
     private fun grantReminderPermissions() {
         val packageName = targetContext.packageName
         listOf(
@@ -227,6 +276,13 @@ class LocationReminderE2ETest {
             null
         }
     }
+
+    private fun findNotification(title: String): Notification? =
+        notificationManager.activeNotifications
+            .map { it.notification }
+            .firstOrNull {
+                it.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() == title
+            }
 
     private fun assertRouteEndsNearMemo(route: List<RoutePoint>, memo: Memo) {
         val result = FloatArray(1)
