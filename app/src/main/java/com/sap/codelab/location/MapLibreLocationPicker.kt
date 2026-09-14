@@ -3,6 +3,8 @@ package com.sap.codelab.location
 import android.content.Context
 import android.os.Bundle
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import com.sap.codelab.R
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
@@ -93,8 +95,8 @@ internal class MapLibreLocationPicker(
             style.addLayer(
                 CircleLayer(MARKER_LAYER_ID, MARKER_SOURCE_ID).withProperties(
                     circleRadius(9f),
-                    circleColor("#FF7043"),
-                    circleStrokeColor("#FFFFFF"),
+                    circleColor(ContextCompat.getColor(context, R.color.colorAccent)),
+                    circleStrokeColor(ContextCompat.getColor(context, R.color.white)),
                     circleStrokeWidth(3f)
                 )
             )

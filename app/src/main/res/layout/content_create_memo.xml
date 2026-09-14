@@ -76,7 +76,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="@string/memo_location_empty_error"
-        android:textColor="@android:color/holo_red_dark"
+        android:textColor="@color/colorError"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

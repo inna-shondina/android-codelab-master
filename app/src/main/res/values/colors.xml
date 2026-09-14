@@ -3,5 +3,10 @@
     <color name="colorPrimary">#9ccc65</color>
     <color name="colorPrimaryDark">#6b9b37</color>
     <color name="colorAccent">#ff7043</color>
+    <color name="colorError">#CC0000</color>
     <color name="white">#FFFFFF</color>
+    <color name="transparent">#00000000</color>
+    <color name="launcher_background">#26A69A</color>
+    <color name="launcher_grid_strong">#66FFFFFF</color>
+    <color name="launcher_grid_light">#33FFFFFF</color>
 </resources>
