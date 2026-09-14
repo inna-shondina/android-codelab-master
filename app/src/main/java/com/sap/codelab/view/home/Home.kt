@@ -46,6 +46,11 @@ internal class Home : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        model.restoreReminders()
+    }
+
     /**
      * Initializes the adapter and sets the needed callbacks.
      */

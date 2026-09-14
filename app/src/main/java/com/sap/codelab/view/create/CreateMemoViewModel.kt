@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sap.codelab.location.GeoPoint
 import com.sap.codelab.model.Memo
-import com.sap.codelab.repository.MemoRepository
+import com.sap.codelab.model.ReminderStatus
+import com.sap.codelab.reminder.ReminderManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,8 +16,10 @@ import kotlinx.coroutines.launch
  * ViewModel for matching CreateMemo view. Handles user interactions.
  */
 internal class CreateMemoViewModel(
-    private val memoRepository: MemoRepository
+    private val reminderManager: ReminderManager
 ) : ViewModel() {
+
+    private var pendingDraft: MemoDraft? = null
 
     private val _uiState = MutableStateFlow(CreateMemoUiState())
     val uiState: StateFlow<CreateMemoUiState> = _uiState.asStateFlow()
@@ -25,7 +28,7 @@ internal class CreateMemoViewModel(
         _uiState.update { it.copy(selectedLocation = location, saveError = null) }
     }
 
-    fun saveMemo(title: String, description: String): MemoValidationErrors {
+    fun prepareMemo(title: String, description: String): MemoValidationErrors {
         val location = _uiState.value.selectedLocation
         val errors = MemoValidationErrors(
             hasTitleError = title.isBlank(),
@@ -34,24 +37,38 @@ internal class CreateMemoViewModel(
         )
         if (errors.hasErrors || location == null || _uiState.value.isSaving) return errors
 
+        pendingDraft = MemoDraft(title.trim(), description.trim(), location)
+        return errors
+    }
+
+    fun savePreparedMemo() {
+        val draft = pendingDraft ?: return
+        if (_uiState.value.isSaving) return
+
         _uiState.update { it.copy(isSaving = true, saveError = null) }
+        pendingDraft = null
         viewModelScope.launch {
             runCatching {
-                memoRepository.insert(
+                reminderManager.createMemo(
                     Memo(
-                        title = title.trim(),
-                        description = description.trim(),
-                        reminderLatitude = location.latitude,
-                        reminderLongitude = location.longitude
+                        title = draft.title,
+                        description = draft.description,
+                        reminderLatitude = draft.location.latitude,
+                        reminderLongitude = draft.location.longitude
                     )
                 )
-            }.onSuccess { memoId ->
-                _uiState.update { it.copy(isSaving = false, savedMemoId = memoId) }
+            }.onSuccess { result ->
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        savedMemoId = result.memoId,
+                        savedReminderStatus = result.reminderStatus
+                    )
+                }
             }.onFailure {
                 _uiState.update { state -> state.copy(isSaving = false, saveError = true) }
             }
         }
-        return errors
     }
 
     fun onSaveErrorShown() {
@@ -63,7 +80,14 @@ internal data class CreateMemoUiState(
     val selectedLocation: GeoPoint? = null,
     val isSaving: Boolean = false,
     val savedMemoId: Long? = null,
+    val savedReminderStatus: ReminderStatus? = null,
     val saveError: Boolean? = null
+)
+
+private data class MemoDraft(
+    val title: String,
+    val description: String,
+    val location: GeoPoint
 )
 
 internal data class MemoValidationErrors(

@@ -9,6 +9,13 @@ import com.sap.codelab.location.MapLibreLocationPicker
 import com.sap.codelab.repository.Database
 import com.sap.codelab.repository.MemoRepository
 import com.sap.codelab.repository.RoomMemoRepository
+import com.sap.codelab.reminder.AndroidMemoNotificationPublisher
+import com.sap.codelab.reminder.AndroidProximityReminderScheduler
+import com.sap.codelab.reminder.AndroidReminderPermissionChecker
+import com.sap.codelab.reminder.ReminderManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 private const val DATABASE_NAME = "codelab"
 
@@ -22,7 +29,15 @@ internal class AppContainer(context: Context) {
     ).addMigrations(MIGRATION_1_2).build()
 
     val memoRepository: MemoRepository = RoomMemoRepository(database.getMemoDao())
-    val viewModelFactory = MemoViewModelFactory(memoRepository)
+    val reminderPermissionChecker = AndroidReminderPermissionChecker(context)
+    val reminderManager = ReminderManager(
+        memoRepository = memoRepository,
+        scheduler = AndroidProximityReminderScheduler(context, reminderPermissionChecker),
+        notificationPublisher = AndroidMemoNotificationPublisher(context),
+        permissionChecker = reminderPermissionChecker
+    )
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val viewModelFactory = MemoViewModelFactory(memoRepository, reminderManager)
     val locationPickerFactory: LocationPickerFactory = LocationPickerFactory { pickerContext ->
         MapLibreLocationPicker(pickerContext)
     }
@@ -51,7 +66,7 @@ internal val MIGRATION_1_2 = object : Migration(1, 2) {
             SELECT
                 id, title, description,
                 CAST(reminderLatitude AS REAL), CAST(reminderLongitude AS REAL),
-                'PENDING', isDone
+                'INACTIVE', isDone
             FROM memo
             """.trimIndent()
         )

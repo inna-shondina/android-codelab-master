@@ -38,7 +38,13 @@ internal interface MemoDao {
     @Query("SELECT * FROM memo WHERE id = :memoId")
     suspend fun getMemoById(memoId: Long): Memo?
 
-    @Query("SELECT * FROM memo WHERE isDone = 0 AND reminderStatus != 'TRIGGERED'")
+    @Query(
+        """
+        SELECT * FROM memo
+        WHERE isDone = 0
+        AND reminderStatus IN ('PENDING', 'ACTIVE', 'PERMISSION_REQUIRED', 'ERROR')
+        """
+    )
     suspend fun getOpenReminders(): List<Memo>
 
     @Query("UPDATE memo SET isDone = 1 WHERE id = :memoId")

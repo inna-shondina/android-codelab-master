@@ -10,6 +10,7 @@ import com.sap.codelab.databinding.ActivityViewMemoBinding
 import com.sap.codelab.location.GeoPoint
 import com.sap.codelab.location.LocationPicker
 import com.sap.codelab.model.Memo
+import com.sap.codelab.model.ReminderStatus
 import com.sap.codelab.repository.App
 import kotlinx.coroutines.launch
 
@@ -60,13 +61,20 @@ internal class ViewMemo : AppCompatActivity() {
             memoDescription.isEnabled = false
             mapInstructions.visibility = android.view.View.GONE
             locationError.visibility = android.view.View.GONE
-            selectedLocation.text = getString(
-                com.sap.codelab.R.string.selected_location,
-                memo.reminderLatitude,
-                memo.reminderLongitude
-            )
+            if (memo.reminderStatus == ReminderStatus.INACTIVE) {
+                mapHost.visibility = android.view.View.GONE
+                selectedLocation.setText(com.sap.codelab.R.string.no_location_reminder)
+            } else {
+                selectedLocation.text = getString(
+                    com.sap.codelab.R.string.selected_location,
+                    memo.reminderLatitude,
+                    memo.reminderLongitude
+                )
+            }
         }
-        locationPicker.showLocation(memo.toGeoPoint())
+        if (memo.reminderStatus != ReminderStatus.INACTIVE) {
+            locationPicker.showLocation(memo.toGeoPoint())
+        }
     }
 
     private fun Memo.toGeoPoint() = GeoPoint(reminderLatitude, reminderLongitude)

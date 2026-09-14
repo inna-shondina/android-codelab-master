@@ -35,4 +35,15 @@
         android:layout_toStartOf="@id/checkBox"
         android:textIsSelectable="false"
         tools:text="This is a text" />
+
+    <TextView
+        android:id="@+id/memoReminderStatus"
+        style="@style/MemoStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/memoText"
+        android:layout_alignParentStart="true"
+        android:layout_toStartOf="@id/checkBox"
+        android:textIsSelectable="false"
+        tools:text="Reminder active" />
 </RelativeLayout>

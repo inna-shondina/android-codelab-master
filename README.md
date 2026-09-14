@@ -1,32 +1,69 @@
-# android-codelab
-Android project that serves as a base for code challenges implemented by applicants.
-The base is written in kotlin. 
+# Location Memo
 
-(!)If you have the NDK plugin installed, please disable it for the project, as errors may occur.
+An Android coding-challenge app that stores a memo with a point selected on a map and posts a one-shot notification when the device enters a 200-metre radius around that point.
 
-# Android Coding Challenges
-Coding challenges are useful when the applicant does not provide a github repository or any work samples. Even if a github repository has been provided it is generally a good idea to give the applicant a task to solve and have him present his solution in a separate session. 
+## Build and run
 
-## General Instructions
-The following instructions/conditions are valid independently of the actual coding challenge
+- Open the project in Android Studio with JDK 21 and Android SDK 36 installed.
+- Run the `app` configuration on an API 27+ device or emulator.
+- No API key, billing account, or proprietary location service is required.
 
-- The code base has been tested with Android Studio Narwhal Feature Drop which is the recommended version, however feel free to try a higher version and adjust the configuration as needed
-- The task should be implemented in kotlin
-- Approach this task as if it was a real-world implementation - i.e. exactly how you would approach the task if you were working for a company
-- 3rd party libraries may be used
-- 3rd party libraries must be wrapped: They should be abstracted out, so any other library could be plugged into the solution
-- The base project for this task will be provided by us
-- Once completed, please send us your solution and presents it to us, followed by a discussion about the implementation and design decisions made
-- The solution can be sent as a zip file or as a publicly accessible github/gitlub etc project link
-- The solution sent to us must be complete, i.e. can be opened directly via Android Studio without additional configuration
+The map uses MapLibre Native with OpenStreetMap raster tiles. OpenStreetMap attribution is supplied through the map style, tile prefetch is disabled, and the app does not provide offline/bulk downloads. The public tile service is suitable for this non-commercial challenge, but a production app should use a provider with an SLA or host its own tiles.
 
-## Location Based Notifications
-In this challenge the applicant has to implement location-based notifications/reminders, the following conditions are given:
+## User flow
 
-- When creating a new memo, the user provides a location by selecting a point on a map (for instance: google maps or open street maps)
-- The memo is then saved
-- Once the user physically reaches that location, a notification should be displayed in the phone's status bar, that contains the title and the first 140 characters of the note text
-- "Reaching the location" is defined as follows: The user is within 200 meters of the location he initially selected during the memo creation
-- The notification should also contain an icon (the icon choice is up to you)
-- Some form of location tracking will be required to achieve the desired result, i.e. to know when a user is close to the given location of a memo
-- The feature must also work, when the app is running in the background (or possibly not running at all)
+1. Create a memo and tap the map to select a location.
+2. Save the memo. Title, description, and location are mandatory.
+3. Grant precise location, background location, and notification permissions. Android 11+ opens the app settings for background access, because the system no longer offers “Allow all the time” in the normal runtime dialog.
+4. Android registers a platform proximity alert with a 200-metre radius.
+5. On the first enter event, the app posts a notification containing the memo title and the first 140 Unicode code points of its description, then completes and removes the reminder.
+
+If a permission is declined, the memo is still saved and clearly marked as needing permissions. Inactive reminders are retried when the app starts or the home screen resumes.
+
+## Architecture
+
+- XML layouts, ViewBinding, Activities, ViewModels, StateFlow, and Room match the style of the starter project.
+- `AppContainer` is the composition root. It uses constructor injection and a small ViewModel factory instead of adding a DI framework for this object graph.
+- `ReminderManager` owns the reminder state machine and coordinates persistence, scheduling, and notification delivery.
+- `MemoRepository`, `ProximityReminderScheduler`, `MemoNotificationPublisher`, `ReminderPermissionChecker`, and `LocationPicker` are boundaries around data and platform/third-party code.
+- `MapLibreLocationPicker` is the only class coupled to MapLibre, so the map SDK and tile source can be replaced without changing Activities or ViewModels.
+- `AndroidProximityReminderScheduler` wraps `LocationManager.addProximityAlert`; the feature therefore does not depend on Google Play services.
+- Room stores coordinates as `Double` and includes a version 1-to-2 migration from the starter schema.
+
+Memos from the starter schema had placeholder `0/0` coordinates, not user-selected locations. The migration therefore preserves them as `INACTIVE` instead of creating false reminders in the Gulf of Guinea.
+
+Proximity alerts are restored after process creation, device reboot, and app replacement. Marking a memo done cancels its alert. Explicit `PendingIntent`s and unique URI identities prevent reminders from overwriting one another.
+
+## Assumptions to confirm with product
+
+The original brief leaves several behaviours undefined. This implementation makes conservative challenge-sized choices:
+
+- Reminders are one-shot, not recurring.
+- A platform enter event may arrive immediately if the memo is created while already inside the radius; that counts as reaching the location.
+- A memo remains saved when permissions are denied, but its reminder stays inactive.
+- Date/time scheduling, editing, deleting, snoozing, and a maximum reminder count are out of scope.
+- “App not running” means the process may be killed normally. Android does not deliver alarms or boot receivers to a force-stopped app until the user launches it again.
+- The public OpenStreetMap tile endpoint has no commercial SLA. Before a production release, product requirements must define expected traffic, offline behaviour, privacy, and the supported tile provider.
+
+Those points should be explicit acceptance criteria in a commercial ticket. Another viable implementation would use Google Play services geofencing, but it introduces a Google service dependency and is not the best fit for the requested zero-cost/no-key solution.
+
+## Platform limitations
+
+`LocationManager` proximity alerts are intentionally approximate. Delivery can be delayed by Doze, device location settings, OEM background restrictions, or sparse location fixes. Reboot recovery occurs after credential-protected Room storage becomes available. Users must choose precise and “Allow all the time” location access for background delivery.
+
+Relevant platform/provider documentation:
+
+- [Android proximity alerts](https://developer.android.com/reference/android/location/LocationManager#addProximityAlert(double,double,float,long,android.app.PendingIntent))
+- [Android background location](https://developer.android.com/develop/sensors-and-location/location/permissions/background)
+- [Android notification permission](https://developer.android.com/develop/ui/views/notifications/notification-permission)
+- [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
+
+## Verification
+
+Run the local checks with:
+
+```shell
+./gradlew assembleDebug testDebugUnitTest lintDebug
+```
+
+The reminder coordinator, one-shot transition, permission fallback, Unicode-safe notification preview, and coordinate validation have unit coverage. End-to-end proximity delivery still requires an emulator/device test because it depends on Android location and notification services.

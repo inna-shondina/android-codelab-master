@@ -13,5 +13,23 @@
     <string name="map_instructions">Tap the map to select where this memo should be triggered.</string>
     <string name="map_content_description">Map for selecting the reminder location</string>
     <string name="no_location_selected">No location selected</string>
+    <string name="no_location_reminder">This legacy memo has no location reminder</string>
     <string name="selected_location">Location: %1$.5f, %2$.5f</string>
+    <string name="location_permission_title">Precise location required</string>
+    <string name="location_permission_rationale">Precise location lets the app detect when you are within 200 metres of the selected point.</string>
+    <string name="background_location_permission_title">Allow background location</string>
+    <string name="background_location_permission_rationale">Enable background location in system settings so reminders can work while the app is closed.</string>
+    <string name="continue_action">Continue</string>
+    <string name="open_settings">Open settings</string>
+    <string name="save_without_reminder">Save inactive</string>
+    <string name="memo_saved_permission_required">Memo saved, but its reminder is inactive until all permissions are enabled.</string>
+    <string name="memo_saved_reminder_error">Memo saved, but Android could not register its location reminder.</string>
+    <string name="reminder_channel_name">Location reminders</string>
+    <string name="reminder_channel_description">Notifications shown when you reach a memo location</string>
+    <string name="reminder_status_inactive">No location reminder</string>
+    <string name="reminder_status_pending">Reminder pending</string>
+    <string name="reminder_status_active">Reminder active</string>
+    <string name="reminder_status_permission_required">Reminder needs permissions</string>
+    <string name="reminder_status_triggered">Reminder delivered</string>
+    <string name="reminder_status_error">Reminder unavailable</string>
 </resources>

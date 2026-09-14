@@ -27,6 +27,7 @@ internal data class Memo(
 )
 
 internal enum class ReminderStatus {
+    INACTIVE,
     PENDING,
     ACTIVE,
     PERMISSION_REQUIRED,

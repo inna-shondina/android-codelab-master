@@ -3,6 +3,8 @@ package com.sap.codelab.view.home
 import androidx.recyclerview.widget.RecyclerView
 import com.sap.codelab.databinding.RecyclerviewMemoBinding
 import com.sap.codelab.model.Memo
+import com.sap.codelab.model.ReminderStatus
+import com.sap.codelab.R
 
 /**
  * View holder for Memos.
@@ -20,6 +22,7 @@ internal class MemoViewHolder(private val binding: RecyclerviewMemoBinding) : Re
         binding.run {
             memoTitle.text = memo.title
             memoText.text = memo.description
+            memoReminderStatus.setText(memo.reminderStatus.labelResource())
         }
         updateCheckbox(memo, onDoneChanged)
         itemView.setOnClickListener { onMemoClicked(memo) }
@@ -38,5 +41,14 @@ internal class MemoViewHolder(private val binding: RecyclerviewMemoBinding) : Re
             isEnabled = !memo.isDone
             setOnCheckedChangeListener { _, isChecked -> onDoneChanged(memo, isChecked) }
         }
+    }
+
+    private fun ReminderStatus.labelResource(): Int = when (this) {
+        ReminderStatus.INACTIVE -> R.string.reminder_status_inactive
+        ReminderStatus.PENDING -> R.string.reminder_status_pending
+        ReminderStatus.ACTIVE -> R.string.reminder_status_active
+        ReminderStatus.PERMISSION_REQUIRED -> R.string.reminder_status_permission_required
+        ReminderStatus.TRIGGERED -> R.string.reminder_status_triggered
+        ReminderStatus.ERROR -> R.string.reminder_status_error
     }
 }

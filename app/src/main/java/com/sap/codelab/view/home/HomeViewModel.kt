@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sap.codelab.model.Memo
 import com.sap.codelab.repository.MemoRepository
+import com.sap.codelab.reminder.ReminderManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,7 +18,8 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class HomeViewModel(
-    private val memoRepository: MemoRepository
+    private val memoRepository: MemoRepository,
+    private val reminderManager: ReminderManager
 ) : ViewModel() {
 
     val isShowingAll = MutableStateFlow(false)
@@ -50,7 +52,13 @@ internal class HomeViewModel(
     fun markDone(memo: Memo, isChecked: Boolean) {
         if (!isChecked || memo.isDone) return
         viewModelScope.launch {
-            memoRepository.markDone(memo.id)
+            runCatching { reminderManager.markDone(memo.id) }
+        }
+    }
+
+    fun restoreReminders() {
+        viewModelScope.launch {
+            runCatching { reminderManager.restoreReminders() }
         }
     }
 }
