@@ -14,9 +14,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.sap.codelab.R
 import com.sap.codelab.databinding.ActivityHomeBinding
 import com.sap.codelab.repository.App
+import com.sap.codelab.view.applySideAndBottomInsetsToMargins
+import com.sap.codelab.view.applySideAndBottomInsetsToPadding
 import com.sap.codelab.view.create.CreateMemo
 import com.sap.codelab.view.detail.BUNDLE_MEMO_ID
 import com.sap.codelab.view.detail.ViewMemo
+import com.sap.codelab.view.enableEdgeToEdgeLayout
 import kotlinx.coroutines.launch
 
 /**
@@ -31,8 +34,11 @@ internal class Home : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdgeLayout()
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.contentHome.recyclerView.applySideAndBottomInsetsToPadding()
+        binding.fab.applySideAndBottomInsetsToMargins()
         setSupportActionBar(binding.toolbar)
         val container = (application as App).container
         model = ViewModelProvider(this, container.viewModelFactory)[HomeViewModel::class.java]

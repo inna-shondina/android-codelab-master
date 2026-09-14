@@ -12,6 +12,8 @@ import com.sap.codelab.location.LocationPicker
 import com.sap.codelab.model.Memo
 import com.sap.codelab.model.ReminderStatus
 import com.sap.codelab.repository.App
+import com.sap.codelab.view.applySideAndBottomInsetsToPadding
+import com.sap.codelab.view.enableEdgeToEdgeLayout
 import kotlinx.coroutines.launch
 
 internal const val BUNDLE_MEMO_ID: String = "memoId"
@@ -26,8 +28,10 @@ internal class ViewMemo : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdgeLayout()
         binding = ActivityViewMemoBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.contentCreateMemo.root.applySideAndBottomInsetsToPadding()
         setSupportActionBar(binding.toolbar)
         val container = (application as App).container
         val model = ViewModelProvider(this, container.viewModelFactory)[ViewMemoViewModel::class.java]

@@ -24,6 +24,8 @@ import com.sap.codelab.location.LocationPicker
 import com.sap.codelab.model.ReminderStatus
 import com.sap.codelab.repository.App
 import com.sap.codelab.reminder.ReminderPermissionChecker
+import com.sap.codelab.view.applySideAndBottomInsetsToPadding
+import com.sap.codelab.view.enableEdgeToEdgeLayout
 import kotlinx.coroutines.launch
 
 /**
@@ -72,8 +74,10 @@ internal class CreateMemo : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdgeLayout()
         binding = ActivityCreateMemoBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.contentCreateMemo.root.applySideAndBottomInsetsToPadding()
         setSupportActionBar(binding.toolbar)
         val container = (application as App).container
         permissionChecker = container.reminderPermissionChecker
