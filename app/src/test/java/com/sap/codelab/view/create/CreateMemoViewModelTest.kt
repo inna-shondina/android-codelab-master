@@ -22,7 +22,6 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -37,42 +36,83 @@ internal class CreateMemoViewModelTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `persisting stage recovers to editable form after process recreation`() {
-        val savedState = SavedStateHandle(
-            mapOf(
-                "saveStage" to MemoSaveStage.PERSISTING.name,
-                "selectedLatitude" to 42.6977,
-                "selectedLongitude" to 23.3219
+    fun `persisting retry reuses row committed after saved state snapshot`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repository = InMemoryMemoRepository()
+            val creationId = "stable-creation-id"
+            val existingMemoId = repository.insert(
+                Memo(
+                    creationId = creationId,
+                    title = "Groceries",
+                    description = "Buy milk",
+                    reminderLatitude = 42.6977,
+                    reminderLongitude = 23.3219
+                )
             )
-        )
+            val savedState = SavedStateHandle(
+                mapOf(
+                    "saveStage" to MemoSaveStage.PERSISTING.name,
+                    "selectedLatitude" to 42.6977,
+                    "selectedLongitude" to 23.3219,
+                    "draftCreationId" to creationId,
+                    "draftTitle" to "Groceries",
+                    "draftDescription" to "Buy milk"
+                )
+            )
 
-        val restored = CreateMemoViewModel(testManager(), savedState)
+            val restored = CreateMemoViewModel(testManager(repository), savedState)
+            advanceUntilIdle()
 
-        assertEquals(MemoSaveStage.EDITING, restored.uiState.value.saveStage)
-        assertFalse(restored.uiState.value.isSaving)
-        assertEquals(MemoSaveStage.EDITING.name, savedState.get<String>("saveStage"))
-    }
+            assertEquals(1, repository.size)
+            assertEquals(existingMemoId, restored.uiState.value.savedMemoId)
+            assertEquals(MemoSaveStage.COMPLETED, restored.uiState.value.saveStage)
+            assertEquals(ReminderStatus.ACTIVE, repository.memo(existingMemoId)?.reminderStatus)
+        }
 
     @Test
-    fun `activating stage recovers to retryable activation after process recreation`() {
-        val savedState = SavedStateHandle(
-            mapOf(
-                "saveStage" to MemoSaveStage.ACTIVATING.name,
-                "savedMemoId" to 7L,
-                "savedReminderStatus" to ReminderStatus.PERMISSION_REQUIRED.name
+    fun `activating stage resumes without an Activity collector`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repository = InMemoryMemoRepository()
+            val memoId = repository.insert(
+                Memo(
+                    title = "Background memo",
+                    description = "Activate after recreation",
+                    reminderLatitude = 42.6977,
+                    reminderLongitude = 23.3219
+                )
             )
-        )
+            val savedState = SavedStateHandle(
+                mapOf(
+                    "saveStage" to MemoSaveStage.ACTIVATING.name,
+                    "savedMemoId" to memoId,
+                    "savedReminderStatus" to ReminderStatus.PENDING.name,
+                    "requestPermissionsAfterActivation" to true
+                )
+            )
 
-        val restored = CreateMemoViewModel(testManager(), savedState)
+            val restored = CreateMemoViewModel(testManager(repository), savedState)
+            advanceUntilIdle()
 
-        assertEquals(MemoSaveStage.AWAITING_PERMISSIONS, restored.uiState.value.saveStage)
-        assertFalse(restored.uiState.value.isSaving)
-        assertFalse(restored.uiState.value.isPermissionRequestInFlight)
-        assertEquals(
-            MemoSaveStage.AWAITING_PERMISSIONS.name,
-            savedState.get<String>("saveStage")
-        )
-    }
+            assertEquals(MemoSaveStage.COMPLETED, restored.uiState.value.saveStage)
+            assertEquals(ReminderStatus.ACTIVE, repository.memo(memoId)?.reminderStatus)
+        }
+
+    @Test
+    fun `saving activates reminder while UI is not collecting state`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repository = InMemoryMemoRepository()
+            val model = CreateMemoViewModel(testManager(repository), SavedStateHandle())
+
+            model.selectLocation(GeoPoint(42.6977, 23.3219))
+            model.prepareMemo(title = "Background save", description = "Keep running")
+            model.savePreparedMemo()
+            advanceUntilIdle()
+
+            val memoId = model.uiState.value.savedMemoId
+            assertEquals(1, repository.size)
+            assertEquals(MemoSaveStage.COMPLETED, model.uiState.value.saveStage)
+            assertEquals(ReminderStatus.ACTIVE, repository.memo(memoId)?.reminderStatus)
+        }
 
     @Test
     fun `memo exists before permissions and activation survives ViewModel recreation`() =
@@ -102,7 +142,10 @@ internal class CreateMemoViewModelTest {
             assertNotNull(savedMemoId)
             assertEquals(MemoSaveStage.AWAITING_PERMISSIONS, original.uiState.value.saveStage)
             assertEquals(1, repository.size)
-            assertEquals(ReminderStatus.PENDING, repository.memo(savedMemoId)?.reminderStatus)
+            assertEquals(
+                ReminderStatus.PERMISSION_REQUIRED,
+                repository.memo(savedMemoId)?.reminderStatus
+            )
             original.onPermissionRequestLaunched()
 
             val restored = CreateMemoViewModel(manager, savedState)
@@ -136,6 +179,9 @@ internal class CreateMemoViewModelTest {
         override fun observeOpen(): Flow<List<Memo>> = all
 
         override suspend fun insert(memo: Memo): Long {
+            memos.values.firstOrNull { it.creationId == memo.creationId }?.let {
+                return it.id
+            }
             val id = nextId++
             memos[id] = memo.copy(id = id)
             publish()
@@ -182,8 +228,10 @@ internal class CreateMemoViewModelTest {
     }
 
     private companion object {
-        fun testManager(): ReminderManager = ReminderManager(
-            memoRepository = InMemoryMemoRepository(),
+        fun testManager(
+            repository: InMemoryMemoRepository = InMemoryMemoRepository()
+        ): ReminderManager = ReminderManager(
+            memoRepository = repository,
             scheduler = RecordingScheduler(),
             notificationPublisher = NoOpNotificationPublisher,
             permissionChecker = MutablePermissionChecker(hasPermissions = true),

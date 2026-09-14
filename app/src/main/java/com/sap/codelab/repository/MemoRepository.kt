@@ -11,6 +11,7 @@ internal interface MemoRepository {
 
     fun observeOpen(): Flow<List<Memo>>
 
+    /** Inserts once per [Memo.creationId], returning the existing row ID on a retry. */
     suspend fun insert(memo: Memo): Long
 
     suspend fun getMemoById(id: Long): Memo?

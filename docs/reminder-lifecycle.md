@@ -33,9 +33,9 @@ stateDiagram-v2
 
 ## Creating a memo inside its radius
 
-The app commits the memo to Room before opening a runtime permission dialog or the system Settings screen. The memo ID, selected point, and creation stage are mirrored in `SavedStateHandle`; after process recreation, permission completion activates the existing row rather than attempting another insert. A denied permission leaves the persisted row in `PERMISSION_REQUIRED`.
+The app commits the memo to Room before opening a runtime permission dialog or the system Settings screen. Before insertion starts, the draft, selected point, creation stage, and a stable creation ID are mirrored in `SavedStateHandle`. Room enforces that creation ID with a unique index, and the repository implements insert-or-get. If Room committed just before process death but the generated row ID was not saved, retrying `PERSISTING` therefore resolves the original row instead of inserting a duplicate. A denied permission leaves that persisted row in `PERMISSION_REQUIRED`.
 
-`PERSISTING` covers only the Room insert; permission checks, the GPS lookup, and proximity registration run after its ID has been stored. If process recreation interrupts a transient stage, `PERSISTING` returns to an editable form and `ACTIVATING` returns to the repeatable activation step. Neither state remains disabled while waiting for a coroutine that belonged to the old process.
+`PERSISTING` covers only the idempotent Room insert. Once its row ID is stored, the state moves to `ACTIVATING` for permission checks, the GPS lookup, and proximity registration. The ViewModel drives both stages in one workflow rather than relying on an Activity collector. Consequently, insertion can finish while the screen is stopped and still proceed to activation. After process recreation, `PERSISTING` repeats insert-or-get with the same creation ID, while `ACTIVATING` repeats activation for the saved row ID; neither stage waits for a coroutine that belonged to the old process.
 
 After all required permissions are available, the app asks Android for a current GPS fix before registering the proximity alert. If that fix is within the inclusive 200-metre radius, the memo is persisted as `WAITING_FOR_EXIT`.
 
@@ -58,7 +58,7 @@ A batch takes at most one current GPS fix for all reminders that require positio
 
 ## Verification
 
-Local unit tests cover state transitions, single-fix batch restoration, and creation-state recovery. Instrumentation tests exercise v1/v2-to-v3 Room migrations and reused details navigation. The GPX E2E suite covers both important device flows:
+Local unit tests cover state transitions, single-fix batch restoration, idempotent persistence recovery, and activation without a UI collector. Instrumentation tests exercise the v1-to-v2 Room migration, duplicate-safe DAO insertion, and reused details navigation. The GPX E2E suite covers both important device flows:
 
 1. Start outside, create a memo, enter the radius, and receive one notification.
 2. Start inside, create a memo, verify that no notification is posted, exit the radius, return, and then receive one notification.

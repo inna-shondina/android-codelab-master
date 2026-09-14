@@ -15,7 +15,7 @@ internal class RoomMemoRepository(
 
     override fun observeOpen(): Flow<List<Memo>> = memoDao.observeOpen()
 
-    override suspend fun insert(memo: Memo): Long = memoDao.insert(memo)
+    override suspend fun insert(memo: Memo): Long = memoDao.insertOrGet(memo)
 
     override suspend fun getMemoById(id: Long): Memo? = memoDao.getMemoById(id)
 

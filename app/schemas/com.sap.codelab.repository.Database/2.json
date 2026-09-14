@@ -1,17 +1,23 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 3,
-    "identityHash": "47d27b85db1de583c780d77cb2ef4c56",
+    "version": 2,
+    "identityHash": "5a75fc9ff0ae4962e74740e5737cee42",
     "entities": [
       {
         "tableName": "memo",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `reminderLatitude` REAL NOT NULL, `reminderLongitude` REAL NOT NULL, `reminderStatus` TEXT NOT NULL, `isDone` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `creationId` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `reminderLatitude` REAL NOT NULL, `reminderLongitude` REAL NOT NULL, `reminderStatus` TEXT NOT NULL, `isDone` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
             "columnName": "id",
             "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "creationId",
+            "columnName": "creationId",
+            "affinity": "TEXT",
             "notNull": true
           },
           {
@@ -56,12 +62,23 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_memo_creationId",
+            "unique": true,
+            "columnNames": [
+              "creationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_memo_creationId` ON `${TABLE_NAME}` (`creationId`)"
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '47d27b85db1de583c780d77cb2ef4c56')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5a75fc9ff0ae4962e74740e5737cee42')"
     ]
   }
 }

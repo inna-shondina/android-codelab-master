@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.sap.codelab.model.Memo
 import com.sap.codelab.model.ReminderStatus
 import kotlinx.coroutines.flow.Flow
@@ -29,8 +30,20 @@ internal interface MemoDao {
     /**
      * Inserts the given Memo into the database. We currently do not support updating of memos.
      */
-    @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(memo: Memo): Long
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnoringConflict(memo: Memo): Long
+
+    @Query("SELECT * FROM memo WHERE creationId = :creationId")
+    suspend fun getMemoByCreationId(creationId: String): Memo?
+
+    @Transaction
+    suspend fun insertOrGet(memo: Memo): Long {
+        val insertedId = insertIgnoringConflict(memo)
+        if (insertedId != INSERT_CONFLICT) return insertedId
+        return requireNotNull(getMemoByCreationId(memo.creationId)) {
+            "Memo insert conflicted without a matching creationId"
+        }.id
+    }
 
     /**
      * @return the memo whose id matches the given id.
@@ -54,4 +67,8 @@ internal interface MemoDao {
 
     @Query("UPDATE memo SET reminderStatus = :status WHERE id = :memoId")
     suspend fun updateReminderStatus(memoId: Long, status: ReminderStatus)
+
+    private companion object {
+        const val INSERT_CONFLICT = -1L
+    }
 }

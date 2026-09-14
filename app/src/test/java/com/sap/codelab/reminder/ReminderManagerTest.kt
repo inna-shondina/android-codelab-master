@@ -214,6 +214,9 @@ internal class ReminderManagerTest {
         override fun observeOpen(): Flow<List<Memo>> = all
 
         override suspend fun insert(memo: Memo): Long {
+            storedMemos.values.firstOrNull { it.creationId == memo.creationId }?.let {
+                return it.id
+            }
             val id = nextId++
             storedMemos[id] = memo.copy(id = id)
             publish()

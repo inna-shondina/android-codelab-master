@@ -25,13 +25,13 @@ The map uses MapLibre Native with OpenStreetMap raster tiles. OpenStreetMap attr
 ## User flow
 
 1. Create a memo and tap the map to select a location.
-2. Save the memo. Title, description, and location are mandatory. The memo is committed to Room before Android opens any external permission UI.
+2. Save the memo. Title, description, and location are mandatory. The memo is committed to Room before Android opens any external permission UI. A stable creation ID makes a retried insert idempotent after process recreation.
 3. Grant precise location, background location, and notification permissions. Android 11+ opens the app settings for background access, because the system no longer offers “Allow all the time” in the normal runtime dialog.
 4. Android registers a platform proximity alert with a 200-metre radius. If the memo is created inside that radius, it waits for the user to leave before becoming active.
 5. On the first enter event after the reminder is active, the app posts a notification containing the memo title and the first 140 Unicode code points of its description, then completes and removes the reminder.
 6. Selecting a memo opens its details. The standard Toolbar navigation action closes the details and returns to the list.
 
-If a permission is declined, the memo remains saved with the `PERMISSION_REQUIRED` status and no proximity alert is scheduled. The saved memo ID, selected point, and creation stage are kept in `SavedStateHandle`, so process recreation while the user is in Settings resumes activation of the existing row. Interrupted transient stages are normalized instead of leaving Save disabled. `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` reminders are reevaluated when the process starts or the home screen resumes. `WAITING_FOR_EXIT` and `ACTIVE` alerts are restored without changing their state. `TRIGGERED` and migrated `INACTIVE` memos are terminal and cannot be rearmed by a late permission callback.
+If a permission is declined, the memo remains saved with the `PERMISSION_REQUIRED` status and no proximity alert is scheduled. The draft, its stable creation ID, the saved memo ID, selected point, and creation stage are kept in `SavedStateHandle`. After process recreation, `PERSISTING` safely repeats an insert-or-get operation and `ACTIVATING` resumes activation of the existing row. The ViewModel owns the complete persistence-and-activation chain, so stopping UI collection after Save does not leave a successfully inserted memo in `PENDING`. `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` reminders are reevaluated when the process starts or the home screen resumes. `WAITING_FOR_EXIT` and `ACTIVE` alerts are restored without changing their state. `TRIGGERED` and migrated `INACTIVE` memos are terminal and cannot be rearmed by a late permission callback.
 
 ## Architecture
 
@@ -44,9 +44,10 @@ If a permission is declined, the memo remains saved with the `PERMISSION_REQUIRE
 - `MemoRepository`, `ProximityReminderScheduler`, `MemoNotificationPublisher`, `ReminderPermissionChecker`, `CurrentLocationProvider`, and `LocationPicker` are boundaries around data and platform/third-party code.
 - `MapLibreLocationPicker` is the only class coupled to MapLibre, so the map SDK and tile source can be replaced without changing Activities or ViewModels.
 - `AndroidProximityReminderScheduler` wraps `LocationManager.addProximityAlert`; the feature therefore does not depend on Google Play services.
-- Room stores coordinates as `Double`, exports its current schema, and includes tested migrations from the original v1 starter database and the intermediate v2 implementation schema.
+- Room stores coordinates as `Double`, exports its current schema, and includes a tested migration from the original v1 starter database.
+- A unique `creationId` in schema v2 makes memo insertion idempotent across process-death recovery.
 
-Memos from the original v1 schema had placeholder `0/0` coordinates, not user-selected locations. The migration therefore preserves them as `INACTIVE` instead of creating false reminders in the Gulf of Guinea. The v2-to-v3 migration normalizes the Room table and preserves a reminder status when that column is present.
+Memos from the original v1 schema had placeholder coordinates rather than user-selected locations. The v1-to-v2 migration therefore preserves every row as `INACTIVE` instead of creating false reminders, converts the coordinates to `Double`, and assigns deterministic unique creation IDs that enable insert retries for new memos.
 
 Proximity alerts are restored after process creation, device reboot, and app replacement. A restoration batch requests at most one current location fix and does so outside the reminder-operation mutex. Marking a memo done cancels its alert. Explicit `PendingIntent`s and unique URI identities prevent reminders from overwriting one another, while `ViewMemo.onNewIntent()` refreshes an already-open details screen for the newly selected notification.
 
@@ -82,7 +83,7 @@ Run the local checks with:
 ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest lintDebug
 ```
 
-This builds both application and instrumentation-test APKs without requiring an emulator. The reminder coordinator, one-shot transition, batched restoration, permission fallback, process-safe creation state, Unicode-safe notification preview, and coordinate validation have local unit coverage.
+This builds both application and instrumentation-test APKs without requiring an emulator. The reminder coordinator, one-shot transition, batched restoration, permission fallback, idempotent process-safe creation workflow, Unicode-safe notification preview, and coordinate validation have local unit coverage.
 
 ### Details navigation test
 
@@ -95,12 +96,14 @@ With an emulator or device connected, verify that the Toolbar navigation action 
 
 ### Database migration tests
 
-The migration suite creates databases matching the original v1 and intermediate v2 tables, opens them through the production migration chain, and verifies that memo data survives in v3:
+The migration test creates a database matching the original v1 table, opens it through the production migration, and verifies that memo data survives in v2:
 
 ```shell
 ./gradlew connectedDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.class=com.sap.codelab.repository.DatabaseMigrationTest
 ```
+
+`MemoDaoTest` separately verifies that retrying an insert with the same creation ID returns the original row instead of creating a duplicate.
 
 ### End-to-end route test
 
