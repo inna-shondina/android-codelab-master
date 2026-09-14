@@ -23,8 +23,13 @@ internal class CreateMemoViewModel(
 
     private var pendingDraft: MemoDraft? = null
 
-    private val _uiState = MutableStateFlow(savedStateHandle.restoreUiState())
+    private val restoredUiState = savedStateHandle.restoreUiState()
+    private val _uiState = MutableStateFlow(restoredUiState)
     val uiState: StateFlow<CreateMemoUiState> = _uiState.asStateFlow()
+
+    init {
+        savedStateHandle.persist(restoredUiState)
+    }
 
     fun selectLocation(location: GeoPoint) {
         updateState { it.copy(selectedLocation = location, saveError = null) }
@@ -172,6 +177,14 @@ private const val PERMISSION_REQUEST_IN_FLIGHT_KEY = "permissionRequestInFlight"
 private fun SavedStateHandle.restoreUiState(): CreateMemoUiState {
     val latitude = get<Double>(SELECTED_LATITUDE_KEY)
     val longitude = get<Double>(SELECTED_LONGITUDE_KEY)
+    val persistedStage = get<String>(SAVE_STAGE_KEY)
+        ?.toEnumOrNull<MemoSaveStage>()
+        ?: MemoSaveStage.EDITING
+    val restoredStage = when (persistedStage) {
+        MemoSaveStage.PERSISTING -> MemoSaveStage.EDITING
+        MemoSaveStage.ACTIVATING -> MemoSaveStage.AWAITING_PERMISSIONS
+        else -> persistedStage
+    }
     return CreateMemoUiState(
         selectedLocation = if (latitude != null && longitude != null) {
             GeoPoint(latitude, longitude)
@@ -181,10 +194,10 @@ private fun SavedStateHandle.restoreUiState(): CreateMemoUiState {
         savedMemoId = get(SAVED_MEMO_ID_KEY),
         savedReminderStatus = get<String>(REMINDER_STATUS_KEY)
             ?.toEnumOrNull<ReminderStatus>(),
-        saveStage = get<String>(SAVE_STAGE_KEY)
-            ?.toEnumOrNull<MemoSaveStage>()
-            ?: MemoSaveStage.EDITING,
-        isPermissionRequestInFlight = get<Boolean>(PERMISSION_REQUEST_IN_FLIGHT_KEY) == true
+        saveStage = restoredStage,
+        isPermissionRequestInFlight =
+            persistedStage == restoredStage &&
+                get<Boolean>(PERMISSION_REQUEST_IN_FLIGHT_KEY) == true
     )
 }
 

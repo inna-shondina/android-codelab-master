@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -34,6 +35,44 @@ internal class CreateMemoViewModelTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun `persisting stage recovers to editable form after process recreation`() {
+        val savedState = SavedStateHandle(
+            mapOf(
+                "saveStage" to MemoSaveStage.PERSISTING.name,
+                "selectedLatitude" to 42.6977,
+                "selectedLongitude" to 23.3219
+            )
+        )
+
+        val restored = CreateMemoViewModel(testManager(), savedState)
+
+        assertEquals(MemoSaveStage.EDITING, restored.uiState.value.saveStage)
+        assertFalse(restored.uiState.value.isSaving)
+        assertEquals(MemoSaveStage.EDITING.name, savedState.get<String>("saveStage"))
+    }
+
+    @Test
+    fun `activating stage recovers to retryable activation after process recreation`() {
+        val savedState = SavedStateHandle(
+            mapOf(
+                "saveStage" to MemoSaveStage.ACTIVATING.name,
+                "savedMemoId" to 7L,
+                "savedReminderStatus" to ReminderStatus.PERMISSION_REQUIRED.name
+            )
+        )
+
+        val restored = CreateMemoViewModel(testManager(), savedState)
+
+        assertEquals(MemoSaveStage.AWAITING_PERMISSIONS, restored.uiState.value.saveStage)
+        assertFalse(restored.uiState.value.isSaving)
+        assertFalse(restored.uiState.value.isPermissionRequestInFlight)
+        assertEquals(
+            MemoSaveStage.AWAITING_PERMISSIONS.name,
+            savedState.get<String>("saveStage")
+        )
+    }
 
     @Test
     fun `memo exists before permissions and activation survives ViewModel recreation`() =
@@ -137,6 +176,16 @@ internal class CreateMemoViewModelTest {
 
     private object NoOpNotificationPublisher : MemoNotificationPublisher {
         override fun publish(memo: Memo): Boolean = true
+    }
+
+    private companion object {
+        fun testManager(): ReminderManager = ReminderManager(
+            memoRepository = InMemoryMemoRepository(),
+            scheduler = RecordingScheduler(),
+            notificationPublisher = NoOpNotificationPublisher,
+            permissionChecker = MutablePermissionChecker(hasPermissions = true),
+            currentLocationProvider = CurrentLocationProvider { GeoPoint(42.0, 23.0) }
+        )
     }
 }
 
