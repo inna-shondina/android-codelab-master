@@ -35,7 +35,9 @@ internal class ReminderManager(
         val memo = requireNotNull(memoRepository.getMemoById(memoId)) {
             "Memo $memoId no longer exists"
         }
-        if (memo.isDone) return@withLock memo.reminderStatus
+        if (memo.isDone || memo.reminderStatus.isTerminal()) {
+            return@withLock memo.reminderStatus
+        }
         register(memo)
     }
 
@@ -139,4 +141,7 @@ internal class ReminderManager(
     private fun Memo.isRestorable(): Boolean =
         !isDone && reminderStatus != ReminderStatus.TRIGGERED &&
             reminderStatus != ReminderStatus.INACTIVE
+
+    private fun ReminderStatus.isTerminal(): Boolean =
+        this == ReminderStatus.TRIGGERED || this == ReminderStatus.INACTIVE
 }

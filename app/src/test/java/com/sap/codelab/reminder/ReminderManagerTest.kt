@@ -155,6 +155,23 @@ internal class ReminderManagerTest {
     }
 
     @Test
+    fun `late activation callback does not rearm triggered reminder`() = runTest {
+        val fixture = Fixture(hasPermissions = true)
+        val memoId = fixture.repository.insert(
+            testMemo().copy(reminderStatus = ReminderStatus.PERMISSION_REQUIRED)
+        )
+        fixture.manager.restoreReminders()
+        fixture.manager.onProximityEvent(memoId, isEntering = true)
+
+        val status = fixture.manager.activateMemo(memoId)
+
+        assertEquals(ReminderStatus.TRIGGERED, status)
+        assertEquals(ReminderStatus.TRIGGERED, fixture.repository.memo(memoId)?.reminderStatus)
+        assertEquals(listOf(memoId), fixture.scheduler.scheduledIds)
+        assertEquals(listOf(memoId), fixture.publisher.publishedIds)
+    }
+
+    @Test
     fun `marking memo done cancels its proximity alert`() = runTest {
         val fixture = Fixture(hasPermissions = true)
         val created = fixture.manager.createMemo(testMemo())
