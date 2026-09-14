@@ -109,6 +109,14 @@ internal class CreateMemoViewModel(
         }
     }
 
+    fun onPermissionRequestLaunched() {
+        updateState { it.copy(isPermissionRequestInFlight = true) }
+    }
+
+    fun onPermissionRequestFinished() {
+        updateState { it.copy(isPermissionRequestInFlight = false) }
+    }
+
     fun onSaveErrorShown() {
         updateState { it.copy(saveError = null) }
     }
@@ -124,6 +132,7 @@ internal data class CreateMemoUiState(
     val savedMemoId: Long? = null,
     val savedReminderStatus: ReminderStatus? = null,
     val saveStage: MemoSaveStage = MemoSaveStage.EDITING,
+    val isPermissionRequestInFlight: Boolean = false,
     val saveError: Boolean? = null
 ) {
     val isSaving: Boolean
@@ -158,6 +167,7 @@ private const val SELECTED_LONGITUDE_KEY = "selectedLongitude"
 private const val SAVED_MEMO_ID_KEY = "savedMemoId"
 private const val REMINDER_STATUS_KEY = "savedReminderStatus"
 private const val SAVE_STAGE_KEY = "saveStage"
+private const val PERMISSION_REQUEST_IN_FLIGHT_KEY = "permissionRequestInFlight"
 
 private fun SavedStateHandle.restoreUiState(): CreateMemoUiState {
     val latitude = get<Double>(SELECTED_LATITUDE_KEY)
@@ -173,7 +183,8 @@ private fun SavedStateHandle.restoreUiState(): CreateMemoUiState {
             ?.toEnumOrNull<ReminderStatus>(),
         saveStage = get<String>(SAVE_STAGE_KEY)
             ?.toEnumOrNull<MemoSaveStage>()
-            ?: MemoSaveStage.EDITING
+            ?: MemoSaveStage.EDITING,
+        isPermissionRequestInFlight = get<Boolean>(PERMISSION_REQUEST_IN_FLIGHT_KEY) == true
     )
 }
 
@@ -183,6 +194,7 @@ private fun SavedStateHandle.persist(state: CreateMemoUiState) {
     this[SAVED_MEMO_ID_KEY] = state.savedMemoId
     this[REMINDER_STATUS_KEY] = state.savedReminderStatus?.name
     this[SAVE_STAGE_KEY] = state.saveStage.name
+    this[PERMISSION_REQUEST_IN_FLIGHT_KEY] = state.isPermissionRequestInFlight
 }
 
 private inline fun <reified T : Enum<T>> String.toEnumOrNull(): T? =

@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
@@ -62,12 +63,15 @@ internal class CreateMemoViewModelTest {
             assertNotNull(savedMemoId)
             assertEquals(MemoSaveStage.AWAITING_PERMISSIONS, original.uiState.value.saveStage)
             assertEquals(1, repository.size)
+            original.onPermissionRequestLaunched()
 
             val restored = CreateMemoViewModel(manager, savedState)
             assertEquals(selectedLocation, restored.uiState.value.selectedLocation)
             assertEquals(savedMemoId, restored.uiState.value.savedMemoId)
             assertEquals(MemoSaveStage.AWAITING_PERMISSIONS, restored.uiState.value.saveStage)
+            assertTrue(restored.uiState.value.isPermissionRequestInFlight)
 
+            restored.onPermissionRequestFinished()
             permissionChecker.hasPermissions = true
             restored.activateSavedMemo()
             advanceUntilIdle()

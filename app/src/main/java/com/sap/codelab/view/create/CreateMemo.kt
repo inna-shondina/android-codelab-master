@@ -43,6 +43,7 @@ internal class CreateMemo : AppCompatActivity() {
     private val foregroundPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
+        model.onPermissionRequestFinished()
         if (result[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
             requestRemainingPermissions()
         } else {
@@ -53,12 +54,14 @@ internal class CreateMemo : AppCompatActivity() {
     private val backgroundPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        model.onPermissionRequestFinished()
         if (isGranted) requestRemainingPermissions() else completePermissionFlow()
     }
 
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
+        model.onPermissionRequestFinished()
         if (permissionChecker.hasBackgroundLocationPermission()) {
             requestRemainingPermissions()
         } else {
@@ -69,12 +72,12 @@ internal class CreateMemo : AppCompatActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
+        model.onPermissionRequestFinished()
         completePermissionFlow()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        isPermissionFlowActive = savedInstanceState?.getBoolean(PERMISSION_FLOW_ACTIVE_KEY) == true
         enableEdgeToEdgeLayout()
         binding = ActivityCreateMemoBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -83,6 +86,7 @@ internal class CreateMemo : AppCompatActivity() {
         val container = (application as App).container
         permissionChecker = container.reminderPermissionChecker
         model = ViewModelProvider(this, container.viewModelFactory)[CreateMemoViewModel::class.java]
+        isPermissionFlowActive = model.uiState.value.isPermissionRequestInFlight
         locationPicker = container.locationPickerFactory.create(this)
         locationPicker.attach(
             host = binding.contentCreateMemo.mapHost,
@@ -146,6 +150,7 @@ internal class CreateMemo : AppCompatActivity() {
             return
         }
         val request = {
+            model.onPermissionRequestLaunched()
             foregroundPermissionLauncher.launch(
                 arrayOf(
                     Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -172,8 +177,10 @@ internal class CreateMemo : AppCompatActivity() {
                 showBackgroundLocationRationale()
 
             !permissionChecker.hasNotificationPermission() &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ->
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                model.onPermissionRequestLaunched()
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
 
             else -> completePermissionFlow()
         }
@@ -190,6 +197,7 @@ internal class CreateMemo : AppCompatActivity() {
     }
 
     private fun requestBackgroundLocation() {
+        model.onPermissionRequestLaunched()
         if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
             backgroundPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         } else {
@@ -223,7 +231,8 @@ internal class CreateMemo : AppCompatActivity() {
                     }
                     if (
                         state.saveStage == MemoSaveStage.AWAITING_PERMISSIONS &&
-                        !isPermissionFlowActive
+                        !isPermissionFlowActive &&
+                        !state.isPermissionRequestInFlight
                     ) {
                         isPermissionFlowActive = true
                         updateSaveAction()
@@ -292,7 +301,6 @@ internal class CreateMemo : AppCompatActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        outState.putBoolean(PERMISSION_FLOW_ACTIVE_KEY, isPermissionFlowActive)
         locationPicker.onSaveInstanceState(outState)
         super.onSaveInstanceState(outState)
     }
@@ -307,5 +315,3 @@ internal class CreateMemo : AppCompatActivity() {
         super.onDestroy()
     }
 }
-
-private const val PERMISSION_FLOW_ACTIVE_KEY = "permissionFlowActive"
