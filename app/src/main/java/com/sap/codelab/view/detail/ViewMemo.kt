@@ -6,6 +6,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.sap.codelab.R
 import com.sap.codelab.databinding.ActivityViewMemoBinding
 import com.sap.codelab.location.GeoPoint
 import com.sap.codelab.location.LocationPicker
@@ -33,6 +34,10 @@ internal class ViewMemo : AppCompatActivity() {
         setContentView(binding.root)
         binding.contentCreateMemo.root.applySideAndBottomInsetsToPadding()
         setSupportActionBar(binding.toolbar)
+        supportActionBar?.apply {
+            setDisplayHomeAsUpEnabled(true)
+            setHomeActionContentDescription(R.string.close_memo_details)
+        }
         val container = (application as App).container
         val model = ViewModelProvider(this, container.viewModelFactory)[ViewMemoViewModel::class.java]
         locationPicker = container.locationPickerFactory.create(this)
@@ -52,6 +57,11 @@ internal class ViewMemo : AppCompatActivity() {
         model.loadMemo(intent.getLongExtra(BUNDLE_MEMO_ID, -1))
     }
 
+    override fun onSupportNavigateUp(): Boolean {
+        finish()
+        return true
+    }
+
     /**
      * Updates the UI with the given memo details.
      *
@@ -67,10 +77,10 @@ internal class ViewMemo : AppCompatActivity() {
             locationError.visibility = android.view.View.GONE
             if (memo.reminderStatus == ReminderStatus.INACTIVE) {
                 mapHost.visibility = android.view.View.GONE
-                selectedLocation.setText(com.sap.codelab.R.string.no_location_reminder)
+                selectedLocation.setText(R.string.no_location_reminder)
             } else {
                 selectedLocation.text = getString(
-                    com.sap.codelab.R.string.selected_location,
+                    R.string.selected_location,
                     memo.reminderLatitude,
                     memo.reminderLongitude
                 )

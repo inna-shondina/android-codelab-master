@@ -5,6 +5,7 @@
     <string name="memo_title">Title</string>
     <string name="new_memo">New Memo</string>
     <string name="memo_text">Text</string>
+    <string name="close_memo_details">Close memo details</string>
     <string name="action_save">Save</string>
     <string name="memo_title_empty_error">Please provide a title for this memo</string>
     <string name="memo_text_empty_error">Please provide a memo description</string>
