@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx
+    version="1.1"
+    creator="Location Memo E2E"
+    xmlns="http://www.topografix.com/GPX/1/1">
+    <trk>
+        <name>Approach memo location</name>
+        <trkseg>
+            <trkpt lat="19.98000" lon="0.00000" />
+            <trkpt lat="19.99000" lon="0.00000" />
+            <trkpt lat="19.99500" lon="0.00000" />
+            <trkpt lat="19.99800" lon="0.00000" />
+            <trkpt lat="20.00000" lon="0.00000" />
+        </trkseg>
+    </trk>
+</gpx>

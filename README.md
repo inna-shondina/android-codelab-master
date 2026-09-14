@@ -28,7 +28,7 @@ If a permission is declined, the memo is still saved and clearly marked as needi
 - `MemoRepository`, `ProximityReminderScheduler`, `MemoNotificationPublisher`, `ReminderPermissionChecker`, and `LocationPicker` are boundaries around data and platform/third-party code.
 - `MapLibreLocationPicker` is the only class coupled to MapLibre, so the map SDK and tile source can be replaced without changing Activities or ViewModels.
 - `AndroidProximityReminderScheduler` wraps `LocationManager.addProximityAlert`; the feature therefore does not depend on Google Play services.
-- Room stores coordinates as `Double` and includes a version 1-to-2 migration from the starter schema.
+- Room stores coordinates as `Double` and includes migrations from both known starter schemas.
 
 Memos from the starter schema had placeholder `0/0` coordinates, not user-selected locations. The migration therefore preserves them as `INACTIVE` instead of creating false reminders in the Gulf of Guinea.
 
@@ -66,4 +66,16 @@ Run the local checks with:
 ./gradlew assembleDebug testDebugUnitTest lintDebug
 ```
 
-The reminder coordinator, one-shot transition, permission fallback, Unicode-safe notification preview, and coordinate validation have unit coverage. End-to-end proximity delivery still requires an emulator/device test because it depends on Android location and notification services.
+The reminder coordinator, one-shot transition, permission fallback, Unicode-safe notification preview, and coordinate validation have unit coverage.
+
+### End-to-end route test
+
+Start a dedicated Android Emulator running API 31 or newer, then run:
+
+```shell
+./scripts/run-e2e.sh
+```
+
+The test creates a memo through `Home -> CreateMemo`, selects a point in the real MapLibre view, and saves it through the real Room and `LocationManager` implementations. It translates [`memo_arrival.gpx`](app/src/androidTest/assets/routes/memo_arrival.gpx) so its final point matches the UI-selected coordinates, backgrounds the activity, and replays the route through a temporary system GPS test provider. The assertion covers the complete delivery path: proximity alert, `BroadcastReceiver`, Room status transition to `TRIGGERED`, and the posted Android notification.
+
+The test grants location and notification permissions, temporarily replaces the emulator GPS provider, and clears this app's notifications. Its `tearDown` restores the GPS provider and mock-location app-op. Run it on an emulator rather than a personal device. The route can also be loaded manually from **Emulator > Extended controls > Location > Routes > Load GPX/KML**.
