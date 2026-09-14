@@ -35,6 +35,8 @@ stateDiagram-v2
 
 The app commits the memo to Room before opening a runtime permission dialog or the system Settings screen. The memo ID, selected point, and creation stage are mirrored in `SavedStateHandle`; after process recreation, permission completion activates the existing row rather than attempting another insert. A denied permission leaves the persisted row in `PERMISSION_REQUIRED`.
 
+`PERSISTING` covers only the Room insert; permission checks, the GPS lookup, and proximity registration run after its ID has been stored. If process recreation interrupts a transient stage, `PERSISTING` returns to an editable form and `ACTIVATING` returns to the repeatable activation step. Neither state remains disabled while waiting for a coroutine that belonged to the old process.
+
 After all required permissions are available, the app asks Android for a current GPS fix before registering the proximity alert. If that fix is within the inclusive 200-metre radius, the memo is persisted as `WAITING_FOR_EXIT`.
 
 An initial `ENTER` event is ignored in this state. The first `EXIT` event changes the state to `ACTIVE` without removing the platform alert. A later `ENTER` publishes the notification, changes the state to `TRIGGERED`, and removes the one-shot alert.
@@ -47,6 +49,8 @@ If Android cannot provide a current fix within five seconds, the reminder is arm
 - `ACTIVE` remains armed after restoration.
 - `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` are reevaluated against the current position when registration is retried.
 - `TRIGGERED`, `INACTIVE`, and completed memos are not registered.
+
+`TRIGGERED` and `INACTIVE` are also terminal for direct activation. A delayed Settings result therefore returns their current status without scheduling an alert or changing the database row.
 
 Process-start, `BOOT_COMPLETED`, and `MY_PACKAGE_REPLACED` restoration is enqueued as unique WorkManager work, so a slow Room query or location lookup does not consume a `BroadcastReceiver` execution deadline. The home screen also performs an in-process retry when it resumes.
 

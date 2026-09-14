@@ -31,7 +31,7 @@ The map uses MapLibre Native with OpenStreetMap raster tiles. OpenStreetMap attr
 5. On the first enter event after the reminder is active, the app posts a notification containing the memo title and the first 140 Unicode code points of its description, then completes and removes the reminder.
 6. Selecting a memo opens its details. The standard Toolbar navigation action closes the details and returns to the list.
 
-If a permission is declined, the memo remains saved with the `PERMISSION_REQUIRED` status and no proximity alert is scheduled. The saved memo ID, selected point, and creation stage are kept in `SavedStateHandle`, so process recreation while the user is in Settings resumes activation instead of inserting a duplicate. `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` reminders are reevaluated when the process starts or the home screen resumes. `WAITING_FOR_EXIT` and `ACTIVE` alerts are restored without changing their state. Migrated `INACTIVE` memos have no real reminder location and are intentionally never registered.
+If a permission is declined, the memo remains saved with the `PERMISSION_REQUIRED` status and no proximity alert is scheduled. The saved memo ID, selected point, and creation stage are kept in `SavedStateHandle`, so process recreation while the user is in Settings resumes activation of the existing row. Interrupted transient stages are normalized instead of leaving Save disabled. `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` reminders are reevaluated when the process starts or the home screen resumes. `WAITING_FOR_EXIT` and `ACTIVE` alerts are restored without changing their state. `TRIGGERED` and migrated `INACTIVE` memos are terminal and cannot be rearmed by a late permission callback.
 
 ## Architecture
 
