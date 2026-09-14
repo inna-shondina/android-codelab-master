@@ -3,6 +3,7 @@ package com.sap.codelab.e2e
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
+import android.os.Build
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
@@ -199,12 +200,15 @@ class LocationReminderE2ETest {
 
     private fun grantReminderPermissions() {
         val packageName = targetContext.packageName
-        listOf(
+        val permissions = mutableListOf(
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-            Manifest.permission.POST_NOTIFICATIONS
-        ).forEach { permission ->
+            Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions += Manifest.permission.POST_NOTIFICATIONS
+        }
+        permissions.forEach { permission ->
             shell("pm grant $packageName $permission")
         }
     }
