@@ -1,6 +1,8 @@
 package com.sap.codelab.view.detail
 
+import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -26,6 +28,7 @@ internal class ViewMemo : AppCompatActivity() {
 
     private lateinit var binding: ActivityViewMemoBinding
     private lateinit var locationPicker: LocationPicker
+    private lateinit var model: ViewMemoViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,7 +42,7 @@ internal class ViewMemo : AppCompatActivity() {
             setHomeActionContentDescription(R.string.close_memo_details)
         }
         val container = (application as App).container
-        val model = ViewModelProvider(this, container.viewModelFactory)[ViewMemoViewModel::class.java]
+        model = ViewModelProvider(this, container.viewModelFactory)[ViewMemoViewModel::class.java]
         locationPicker = container.locationPickerFactory.create(this)
         locationPicker.attach(
             host = binding.contentCreateMemo.mapHost,
@@ -54,7 +57,13 @@ internal class ViewMemo : AppCompatActivity() {
                 }
             }
         }
-        model.loadMemo(intent.getLongExtra(BUNDLE_MEMO_ID, -1))
+        loadMemo(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        loadMemo(intent)
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -73,12 +82,13 @@ internal class ViewMemo : AppCompatActivity() {
             memoDescription.setText(memo.description)
             memoTitle.isEnabled = false
             memoDescription.isEnabled = false
-            mapInstructions.visibility = android.view.View.GONE
-            locationError.visibility = android.view.View.GONE
+            mapInstructions.visibility = View.GONE
+            locationError.visibility = View.GONE
             if (memo.reminderStatus == ReminderStatus.INACTIVE) {
-                mapHost.visibility = android.view.View.GONE
+                mapHost.visibility = View.GONE
                 selectedLocation.setText(R.string.no_location_reminder)
             } else {
+                mapHost.visibility = View.VISIBLE
                 selectedLocation.text = getString(
                     R.string.selected_location,
                     memo.reminderLatitude,
@@ -89,6 +99,10 @@ internal class ViewMemo : AppCompatActivity() {
         if (memo.reminderStatus != ReminderStatus.INACTIVE) {
             locationPicker.showLocation(memo.toGeoPoint())
         }
+    }
+
+    private fun loadMemo(intent: Intent) {
+        model.loadMemo(intent.getLongExtra(BUNDLE_MEMO_ID, -1))
     }
 
     private fun Memo.toGeoPoint() = GeoPoint(reminderLatitude, reminderLongitude)
