@@ -1,34 +1,28 @@
 package com.sap.codelab.repository
 
-import androidx.room.Room
-import android.content.Context
-import androidx.annotation.WorkerThread
 import com.sap.codelab.model.Memo
-
-private const val DATABASE_NAME: String = "codelab"
+import com.sap.codelab.model.ReminderStatus
+import kotlinx.coroutines.flow.Flow
 
 /**
  * The repository is used to retrieve data from a data source.
  */
-internal object Repository : IMemoRepository {
+internal class RoomMemoRepository(
+    private val memoDao: MemoDao
+) : MemoRepository {
 
-    private lateinit var database: Database
+    override fun observeAll(): Flow<List<Memo>> = memoDao.observeAll()
 
-    fun initialize(applicationContext: Context) {
-        database = Room.databaseBuilder(applicationContext, Database::class.java, DATABASE_NAME).build()
-    }
+    override fun observeOpen(): Flow<List<Memo>> = memoDao.observeOpen()
 
-    @WorkerThread
-    override fun saveMemo(memo: Memo) {
-        database.getMemoDao().insert(memo)
-    }
+    override suspend fun insert(memo: Memo): Long = memoDao.insert(memo)
 
-    @WorkerThread
-    override fun getOpen(): List<Memo> = database.getMemoDao().getOpen()
+    override suspend fun getMemoById(id: Long): Memo? = memoDao.getMemoById(id)
 
-    @WorkerThread
-    override fun getAll(): List<Memo> = database.getMemoDao().getAll()
+    override suspend fun getOpenReminders(): List<Memo> = memoDao.getOpenReminders()
 
-    @WorkerThread
-    override fun getMemoById(id: Long): Memo = database.getMemoDao().getMemoById(id)
+    override suspend fun markDone(id: Long) = memoDao.markDone(id)
+
+    override suspend fun updateReminderStatus(id: Long, status: ReminderStatus) =
+        memoDao.updateReminderStatus(id, status)
 }

@@ -1,40 +1,26 @@
 package com.sap.codelab.view.home
 
-import androidx.recyclerview.widget.RecyclerView
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
-import android.widget.CompoundButton
 import com.sap.codelab.databinding.RecyclerviewMemoBinding
 import com.sap.codelab.model.Memo
-import kotlin.math.max
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 
 /**
  * Adapter containing a set of memos.
  */
-internal class MemoAdapter(private val items: MutableList<Memo>,
-                           private val onClick: View.OnClickListener,
-                           private val onCheckboxChanged: CompoundButton.OnCheckedChangeListener) : RecyclerView.Adapter<MemoViewHolder>() {
+internal class MemoAdapter(
+    private val onMemoClicked: (Memo) -> Unit,
+    private val onDoneChanged: (Memo, Boolean) -> Unit
+) : ListAdapter<Memo, MemoViewHolder>(MemoDiffCallback) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewTypee: Int): MemoViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MemoViewHolder {
         return MemoViewHolder(newItemViewBinding(parent))
     }
 
     override fun onBindViewHolder(holder: MemoViewHolder, position: Int) {
-        val memo = items[position]
-        holder.update(memo, onClick, onCheckboxChanged)
-    }
-
-    override fun getItemCount(): Int = items.size
-
-    /**
-     * Updates the current list of items to the given list of items.
-     */
-    fun setItems(newItems: List<Memo>) {
-        val count = itemCount
-        items.clear()
-        items.addAll(newItems)
-        notifyItemRangeChanged(0, max(count, itemCount))
+        holder.update(getItem(position), onMemoClicked, onDoneChanged)
     }
 
     /**
@@ -44,6 +30,12 @@ internal class MemoAdapter(private val items: MutableList<Memo>,
      * @return the view binding.
      */
     private fun newItemViewBinding(parent: ViewGroup): RecyclerviewMemoBinding {
-        return RecyclerviewMemoBinding.inflate(LayoutInflater.from(parent.context))
+        return RecyclerviewMemoBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+    }
+
+    private object MemoDiffCallback : DiffUtil.ItemCallback<Memo>() {
+        override fun areItemsTheSame(oldItem: Memo, newItem: Memo): Boolean = oldItem.id == newItem.id
+
+        override fun areContentsTheSame(oldItem: Memo, newItem: Memo): Boolean = oldItem == newItem
     }
 }

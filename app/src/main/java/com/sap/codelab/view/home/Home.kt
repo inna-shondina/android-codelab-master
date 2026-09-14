@@ -7,12 +7,13 @@ import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import android.view.Menu
 import android.view.MenuItem
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.coroutineScope
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.sap.codelab.R
 import com.sap.codelab.databinding.ActivityHomeBinding
-import com.sap.codelab.model.Memo
+import com.sap.codelab.repository.App
 import com.sap.codelab.view.create.CreateMemo
 import com.sap.codelab.view.detail.BUNDLE_MEMO_ID
 import com.sap.codelab.view.detail.ViewMemo
@@ -27,44 +28,35 @@ internal class Home : AppCompatActivity() {
     private lateinit var model: HomeViewModel
     private lateinit var menuItemShowAll: MenuItem
     private lateinit var menuItemShowOpen: MenuItem
-    private val createMemoLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == RESULT_OK) {
-            model.refreshMemos()
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityHomeBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setSupportActionBar(binding.toolbar)
-        model = ViewModelProvider(this)[HomeViewModel::class.java]
+        val container = (application as App).container
+        model = ViewModelProvider(this, container.viewModelFactory)[HomeViewModel::class.java]
 
         // Setup the adapter and the recycler view
         setupRecyclerView(initializeAdapter())
 
         binding.fab.setOnClickListener {
             // Handles clicks on the FAB button > creates a new Memo
-            createMemoLauncher.launch(Intent(this@Home, CreateMemo::class.java))
+            startActivity(Intent(this@Home, CreateMemo::class.java))
         }
-        model.loadOpenMemos()
     }
 
     /**
      * Initializes the adapter and sets the needed callbacks.
      */
-    private fun initializeAdapter() : MemoAdapter {
-        val adapter = MemoAdapter(mutableListOf(), { view ->
-            // Implementation for when the user selects a row to show the detail view
-            showMemo((view.tag as Memo).id)
-        }, { checkbox, isChecked ->
-            // Implementation for when the user marks a memo as completed
-            model.updateMemo(checkbox.tag as Memo, isChecked)
-            model.refreshMemos()
-        })
-        lifecycle.coroutineScope.launch {
-            model.memos.collect { memos ->
-                adapter.setItems(memos)
+    private fun initializeAdapter(): MemoAdapter {
+        val adapter = MemoAdapter(
+            onMemoClicked = { memo -> showMemo(memo.id) },
+            onDoneChanged = model::markDone
+        )
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                model.memos.collect(adapter::submitList)
             }
         }
         return adapter
@@ -96,6 +88,7 @@ internal class Home : AppCompatActivity() {
         menuInflater.inflate(R.menu.menu_home, menu)
         menuItemShowAll = menu.findItem(R.id.action_show_all)
         menuItemShowOpen = menu.findItem(R.id.action_show_open)
+        updateMenuVisibility()
         return true
     }
 
@@ -105,21 +98,23 @@ internal class Home : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_show_all -> {
-                model.loadAllMemos()
-                //Switch available menu options
-                menuItemShowAll.isVisible = false
-                menuItemShowOpen.isVisible = true
+                model.showAllMemos()
+                updateMenuVisibility()
                 true
             }
             R.id.action_show_open -> {
-                model.loadOpenMemos()
-                //Switch available menu options
-                menuItemShowOpen.isVisible = false
-                menuItemShowAll.isVisible = true
+                model.showOpenMemos()
+                updateMenuVisibility()
                 true
             }
 
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    private fun updateMenuVisibility() {
+        val isShowingAll = model.isShowingAll.value
+        menuItemShowAll.isVisible = !isShowingAll
+        menuItemShowOpen.isVisible = isShowingAll
     }
 }

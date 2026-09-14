@@ -8,4 +8,10 @@
     <string name="action_save">Save</string>
     <string name="memo_title_empty_error">Please provide a title for this memo</string>
     <string name="memo_text_empty_error">Please provide a memo description</string>
+    <string name="memo_location_empty_error">Please select a reminder location</string>
+    <string name="memo_save_error">Could not save the memo. Please try again.</string>
+    <string name="map_instructions">Tap the map to select where this memo should be triggered.</string>
+    <string name="map_content_description">Map for selecting the reminder location</string>
+    <string name="no_location_selected">No location selected</string>
+    <string name="selected_location">Location: %1$.5f, %2$.5f</string>
 </resources>

@@ -5,6 +5,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.sap.codelab.model.Memo
+import com.sap.codelab.model.ReminderStatus
+import kotlinx.coroutines.flow.Flow
 
 /**
  * The Dao representation of a Memo.
@@ -15,24 +17,33 @@ internal interface MemoDao {
     /**
      * @return all memos that are currently in the database.
      */
-    @Query("SELECT * FROM memo")
-    fun getAll(): List<Memo>
+    @Query("SELECT * FROM memo ORDER BY id DESC")
+    fun observeAll(): Flow<List<Memo>>
 
     /**
      * @return all memos that are currently in the database and have not yet been marked as "done".
      */
-    @Query("SELECT * FROM memo WHERE isDone = 0")
-    fun getOpen(): List<Memo>
+    @Query("SELECT * FROM memo WHERE isDone = 0 ORDER BY id DESC")
+    fun observeOpen(): Flow<List<Memo>>
 
     /**
      * Inserts the given Memo into the database. We currently do not support updating of memos.
      */
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(memo: Memo)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(memo: Memo): Long
 
     /**
      * @return the memo whose id matches the given id.
      */
     @Query("SELECT * FROM memo WHERE id = :memoId")
-    fun getMemoById(memoId: Long): Memo
+    suspend fun getMemoById(memoId: Long): Memo?
+
+    @Query("SELECT * FROM memo WHERE isDone = 0 AND reminderStatus != 'TRIGGERED'")
+    suspend fun getOpenReminders(): List<Memo>
+
+    @Query("UPDATE memo SET isDone = 1 WHERE id = :memoId")
+    suspend fun markDone(memoId: Long)
+
+    @Query("UPDATE memo SET reminderStatus = :status WHERE id = :memoId")
+    suspend fun updateReminderStatus(memoId: Long, status: ReminderStatus)
 }

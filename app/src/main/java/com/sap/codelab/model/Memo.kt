@@ -9,19 +9,27 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "memo")
 internal data class Memo(
-        @ColumnInfo(name = "id")
-        @PrimaryKey(autoGenerate = true)
-        var id: Long,
-        @ColumnInfo(name = "title")
-        var title: String,
-        @ColumnInfo(name = "description")
-        var description: String,
-        @ColumnInfo(name = "reminderDate")
-        var reminderDate: Long,
-        @ColumnInfo(name = "reminderLatitude")
-        var reminderLatitude: Long,
-        @ColumnInfo(name = "reminderLongitude")
-        var reminderLongitude: Long,
-        @ColumnInfo(name = "isDone")
-        var isDone: Boolean = false
+    @ColumnInfo(name = "id")
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    @ColumnInfo(name = "title")
+    val title: String,
+    @ColumnInfo(name = "description")
+    val description: String,
+    @ColumnInfo(name = "reminderLatitude")
+    val reminderLatitude: Double,
+    @ColumnInfo(name = "reminderLongitude")
+    val reminderLongitude: Double,
+    @ColumnInfo(name = "reminderStatus")
+    val reminderStatus: ReminderStatus = ReminderStatus.PENDING,
+    @ColumnInfo(name = "isDone")
+    val isDone: Boolean = false
 )
+
+internal enum class ReminderStatus {
+    PENDING,
+    ACTIVE,
+    PERMISSION_REQUIRED,
+    TRIGGERED,
+    ERROR
+}
