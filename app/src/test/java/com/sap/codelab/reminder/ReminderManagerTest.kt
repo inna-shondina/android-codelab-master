@@ -108,6 +108,21 @@ internal class ReminderManagerTest {
     }
 
     @Test
+    fun `restore resolves current location once for the whole batch`() = runTest {
+        val fixture = Fixture(hasPermissions = true)
+        repeat(25) {
+            fixture.repository.insert(
+                testMemo().copy(reminderStatus = ReminderStatus.PERMISSION_REQUIRED)
+            )
+        }
+
+        fixture.manager.restoreReminders()
+
+        assertEquals(1, fixture.locationRequestCount)
+        assertEquals(25, fixture.scheduler.scheduledIds.size)
+    }
+
+    @Test
     fun `restore keeps waiting reminder disarmed until exit`() = runTest {
         val fixture = Fixture(
             hasPermissions = true,
@@ -158,12 +173,17 @@ internal class ReminderManagerTest {
         val repository = FakeMemoRepository()
         val scheduler = FakeScheduler()
         val publisher = FakeNotificationPublisher(canPublish)
+        var locationRequestCount = 0
+            private set
         val manager = ReminderManager(
             memoRepository = repository,
             scheduler = scheduler,
             notificationPublisher = publisher,
             permissionChecker = FakePermissionChecker(hasPermissions),
-            currentLocationProvider = CurrentLocationProvider { currentLocation }
+            currentLocationProvider = CurrentLocationProvider {
+                locationRequestCount++
+                currentLocation
+            }
         )
     }
 

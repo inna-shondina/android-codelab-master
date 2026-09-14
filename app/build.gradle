@@ -33,6 +33,7 @@ ext {
     kotlinCoroutinesVersion = '1.11.0'
     roomVersion = '2.8.5'
     lifecycleVersion = '2.11.0'
+    workManagerVersion = '2.11.2'
 }
 
 dependencies {
@@ -44,6 +45,9 @@ dependencies {
     // Lifecycle and ViewModel
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycleVersion"
+
+    // Reliable, deadline-independent reminder restoration after restart/update.
+    implementation "androidx.work:work-runtime-ktx:$workManagerVersion"
 
     // Room persistence
     implementation "androidx.room:room-runtime:$roomVersion"

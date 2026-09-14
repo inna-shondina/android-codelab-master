@@ -44,8 +44,25 @@ internal class ReminderManager(
         memoRepository.markDone(memoId)
     }
 
-    suspend fun restoreReminders() = operationMutex.withLock {
-        memoRepository.getOpenReminders().forEach { memo -> register(memo) }
+    suspend fun restoreReminders() {
+        val candidates = memoRepository.getOpenReminders()
+        if (candidates.isEmpty()) return
+
+        val hasPermissions = permissionChecker.hasAllReminderPermissions()
+        val currentLocation = if (hasPermissions && candidates.any { it.requiresCurrentLocation() }) {
+            currentLocationProvider.currentLocation()
+        } else {
+            null
+        }
+
+        operationMutex.withLock {
+            candidates.forEach { candidate ->
+                val memo = memoRepository.getMemoById(candidate.id)
+                if (memo != null && memo.isRestorable()) {
+                    register(memo, hasPermissions, currentLocation)
+                }
+            }
+        }
     }
 
     suspend fun onProximityEvent(memoId: Long, isEntering: Boolean) = operationMutex.withLock {
@@ -68,14 +85,28 @@ internal class ReminderManager(
     }
 
     private suspend fun register(memo: Memo): ReminderStatus {
-        if (!permissionChecker.hasAllReminderPermissions()) {
+        val hasPermissions = permissionChecker.hasAllReminderPermissions()
+        val currentLocation = if (hasPermissions && memo.requiresCurrentLocation()) {
+            currentLocationProvider.currentLocation()
+        } else {
+            null
+        }
+        return register(memo, hasPermissions, currentLocation)
+    }
+
+    private suspend fun register(
+        memo: Memo,
+        hasPermissions: Boolean,
+        currentLocation: GeoPoint?
+    ): ReminderStatus {
+        if (!hasPermissions) {
             scheduler.cancel(memo.id)
             return updateStatus(memo, ReminderStatus.PERMISSION_REQUIRED)
         }
         val readyStatus = when (memo.reminderStatus) {
             ReminderStatus.WAITING_FOR_EXIT -> ReminderStatus.WAITING_FOR_EXIT
             ReminderStatus.ACTIVE -> ReminderStatus.ACTIVE
-            else -> if (isCurrentlyInside(memo)) {
+            else -> if (isCurrentlyInside(memo, currentLocation)) {
                 ReminderStatus.WAITING_FOR_EXIT
             } else {
                 ReminderStatus.ACTIVE
@@ -96,9 +127,16 @@ internal class ReminderManager(
         return status
     }
 
-    private suspend fun isCurrentlyInside(memo: Memo): Boolean {
-        val currentLocation = currentLocationProvider.currentLocation() ?: return false
+    private fun isCurrentlyInside(memo: Memo, currentLocation: GeoPoint?): Boolean {
+        currentLocation ?: return false
         val reminderLocation = GeoPoint(memo.reminderLatitude, memo.reminderLongitude)
         return currentLocation.distanceTo(reminderLocation) <= PROXIMITY_RADIUS_METERS
     }
+
+    private fun Memo.requiresCurrentLocation(): Boolean =
+        reminderStatus != ReminderStatus.WAITING_FOR_EXIT && reminderStatus != ReminderStatus.ACTIVE
+
+    private fun Memo.isRestorable(): Boolean =
+        !isDone && reminderStatus != ReminderStatus.TRIGGERED &&
+            reminderStatus != ReminderStatus.INACTIVE
 }

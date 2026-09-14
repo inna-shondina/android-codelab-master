@@ -3,8 +3,6 @@ package com.sap.codelab.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import com.sap.codelab.repository.App
-import kotlinx.coroutines.launch
 
 internal class ReminderRestoreReceiver : BroadcastReceiver() {
 
@@ -14,14 +12,6 @@ internal class ReminderRestoreReceiver : BroadcastReceiver() {
         ) {
             return
         }
-        val pendingResult = goAsync()
-        val container = (context.applicationContext as App).container
-        container.applicationScope.launch {
-            try {
-                runCatching { container.reminderManager.restoreReminders() }
-            } finally {
-                pendingResult.finish()
-            }
-        }
+        ReminderRestoreWork.enqueue(context)
     }
 }
