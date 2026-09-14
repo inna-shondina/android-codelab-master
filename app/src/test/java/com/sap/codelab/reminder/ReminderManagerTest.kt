@@ -1,5 +1,6 @@
 package com.sap.codelab.reminder
 
+import com.sap.codelab.location.GeoPoint
 import com.sap.codelab.model.Memo
 import com.sap.codelab.model.ReminderStatus
 import com.sap.codelab.repository.MemoRepository
@@ -14,13 +15,49 @@ internal class ReminderManagerTest {
 
     @Test
     fun `creating memo schedules alert and persists active status`() = runTest {
-        val fixture = Fixture(hasPermissions = true)
+        val fixture = Fixture(
+            hasPermissions = true,
+            currentLocation = GeoPoint(42.0, 23.0)
+        )
 
         val result = fixture.manager.createMemo(testMemo())
 
         assertEquals(ReminderStatus.ACTIVE, result.reminderStatus)
         assertEquals(listOf(result.memoId), fixture.scheduler.scheduledIds)
         assertEquals(ReminderStatus.ACTIVE, fixture.repository.memo(result.memoId)?.reminderStatus)
+    }
+
+    @Test
+    fun `creating memo inside radius waits for exit before notifying`() = runTest {
+        val fixture = Fixture(
+            hasPermissions = true,
+            currentLocation = GeoPoint(42.6977, 23.3219)
+        )
+
+        val created = fixture.manager.createMemo(testMemo())
+        fixture.manager.onProximityEvent(created.memoId, isEntering = true)
+
+        assertEquals(ReminderStatus.WAITING_FOR_EXIT, created.reminderStatus)
+        assertTrue(fixture.publisher.publishedIds.isEmpty())
+
+        fixture.manager.onProximityEvent(created.memoId, isEntering = false)
+
+        assertEquals(ReminderStatus.ACTIVE, fixture.repository.memo(created.memoId)?.reminderStatus)
+
+        fixture.manager.onProximityEvent(created.memoId, isEntering = true)
+
+        assertEquals(listOf(created.memoId), fixture.publisher.publishedIds)
+        assertEquals(ReminderStatus.TRIGGERED, fixture.repository.memo(created.memoId)?.reminderStatus)
+    }
+
+    @Test
+    fun `creating memo without a current fix remains armed`() = runTest {
+        val fixture = Fixture(hasPermissions = true, currentLocation = null)
+
+        val result = fixture.manager.createMemo(testMemo())
+
+        assertEquals(ReminderStatus.ACTIVE, result.reminderStatus)
+        assertEquals(listOf(result.memoId), fixture.scheduler.scheduledIds)
     }
 
     @Test
@@ -71,6 +108,24 @@ internal class ReminderManagerTest {
     }
 
     @Test
+    fun `restore keeps waiting reminder disarmed until exit`() = runTest {
+        val fixture = Fixture(
+            hasPermissions = true,
+            currentLocation = GeoPoint(42.0, 23.0)
+        )
+        val memoId = fixture.repository.insert(
+            testMemo().copy(reminderStatus = ReminderStatus.WAITING_FOR_EXIT)
+        )
+
+        fixture.manager.restoreReminders()
+        fixture.manager.onProximityEvent(memoId, isEntering = true)
+
+        assertEquals(listOf(memoId), fixture.scheduler.scheduledIds)
+        assertEquals(ReminderStatus.WAITING_FOR_EXIT, fixture.repository.memo(memoId)?.reminderStatus)
+        assertTrue(fixture.publisher.publishedIds.isEmpty())
+    }
+
+    @Test
     fun `notification denial returns reminder to permission required state`() = runTest {
         val fixture = Fixture(hasPermissions = true, canPublish = false)
         val created = fixture.manager.createMemo(testMemo())
@@ -97,7 +152,8 @@ internal class ReminderManagerTest {
 
     private class Fixture(
         hasPermissions: Boolean,
-        canPublish: Boolean = true
+        canPublish: Boolean = true,
+        currentLocation: GeoPoint? = GeoPoint(42.0, 23.0)
     ) {
         val repository = FakeMemoRepository()
         val scheduler = FakeScheduler()
@@ -106,7 +162,8 @@ internal class ReminderManagerTest {
             memoRepository = repository,
             scheduler = scheduler,
             notificationPublisher = publisher,
-            permissionChecker = FakePermissionChecker(hasPermissions)
+            permissionChecker = FakePermissionChecker(hasPermissions),
+            currentLocationProvider = CurrentLocationProvider { currentLocation }
         )
     }
 

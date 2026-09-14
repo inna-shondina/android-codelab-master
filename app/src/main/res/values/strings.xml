@@ -28,6 +28,7 @@
     <string name="reminder_channel_description">Notifications shown when you reach a memo location</string>
     <string name="reminder_status_inactive">No location reminder</string>
     <string name="reminder_status_pending">Reminder pending</string>
+    <string name="reminder_status_waiting_for_exit">Waiting until you leave this location</string>
     <string name="reminder_status_active">Reminder active</string>
     <string name="reminder_status_permission_required">Reminder needs permissions</string>
     <string name="reminder_status_triggered">Reminder delivered</string>

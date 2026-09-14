@@ -42,7 +42,9 @@ internal interface MemoDao {
         """
         SELECT * FROM memo
         WHERE isDone = 0
-        AND reminderStatus IN ('PENDING', 'ACTIVE', 'PERMISSION_REQUIRED', 'ERROR')
+        AND reminderStatus IN (
+            'PENDING', 'WAITING_FOR_EXIT', 'ACTIVE', 'PERMISSION_REQUIRED', 'ERROR'
+        )
         """
     )
     suspend fun getOpenReminders(): List<Memo>

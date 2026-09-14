@@ -1,5 +1,7 @@
 package com.sap.codelab.reminder
 
+import com.sap.codelab.location.GeoPoint
+import com.sap.codelab.location.distanceTo
 import com.sap.codelab.model.Memo
 import com.sap.codelab.model.ReminderStatus
 import com.sap.codelab.repository.MemoRepository
@@ -16,7 +18,8 @@ internal class ReminderManager(
     private val memoRepository: MemoRepository,
     private val scheduler: ProximityReminderScheduler,
     private val notificationPublisher: MemoNotificationPublisher,
-    private val permissionChecker: ReminderPermissionChecker
+    private val permissionChecker: ReminderPermissionChecker,
+    private val currentLocationProvider: CurrentLocationProvider
 ) {
 
     private val operationMutex = Mutex()
@@ -38,9 +41,14 @@ internal class ReminderManager(
     }
 
     suspend fun onProximityEvent(memoId: Long, isEntering: Boolean) = operationMutex.withLock {
-        if (!isEntering) return@withLock
         val memo = memoRepository.getMemoById(memoId) ?: return@withLock
-        if (memo.isDone || memo.reminderStatus != ReminderStatus.ACTIVE) return@withLock
+        if (memo.isDone) return@withLock
+
+        if (memo.reminderStatus == ReminderStatus.WAITING_FOR_EXIT) {
+            if (!isEntering) updateStatus(memo, ReminderStatus.ACTIVE)
+            return@withLock
+        }
+        if (!isEntering || memo.reminderStatus != ReminderStatus.ACTIVE) return@withLock
 
         val status = if (notificationPublisher.publish(memo)) {
             ReminderStatus.TRIGGERED
@@ -56,8 +64,17 @@ internal class ReminderManager(
             scheduler.cancel(memo.id)
             return updateStatus(memo, ReminderStatus.PERMISSION_REQUIRED)
         }
+        val readyStatus = when (memo.reminderStatus) {
+            ReminderStatus.WAITING_FOR_EXIT -> ReminderStatus.WAITING_FOR_EXIT
+            ReminderStatus.ACTIVE -> ReminderStatus.ACTIVE
+            else -> if (isCurrentlyInside(memo)) {
+                ReminderStatus.WAITING_FOR_EXIT
+            } else {
+                ReminderStatus.ACTIVE
+            }
+        }
         val status = when (scheduler.schedule(memo)) {
-            ScheduleResult.Scheduled -> ReminderStatus.ACTIVE
+            ScheduleResult.Scheduled -> readyStatus
             ScheduleResult.PermissionRequired -> ReminderStatus.PERMISSION_REQUIRED
             is ScheduleResult.Failed -> ReminderStatus.ERROR
         }
@@ -69,5 +86,11 @@ internal class ReminderManager(
             memoRepository.updateReminderStatus(memo.id, status)
         }
         return status
+    }
+
+    private suspend fun isCurrentlyInside(memo: Memo): Boolean {
+        val currentLocation = currentLocationProvider.currentLocation() ?: return false
+        val reminderLocation = GeoPoint(memo.reminderLatitude, memo.reminderLongitude)
+        return currentLocation.distanceTo(reminderLocation) <= PROXIMITY_RADIUS_METERS
     }
 }

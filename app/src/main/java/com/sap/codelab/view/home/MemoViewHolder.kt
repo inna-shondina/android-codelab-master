@@ -46,6 +46,7 @@ internal class MemoViewHolder(private val binding: RecyclerviewMemoBinding) : Re
     private fun ReminderStatus.labelResource(): Int = when (this) {
         ReminderStatus.INACTIVE -> R.string.reminder_status_inactive
         ReminderStatus.PENDING -> R.string.reminder_status_pending
+        ReminderStatus.WAITING_FOR_EXIT -> R.string.reminder_status_waiting_for_exit
         ReminderStatus.ACTIVE -> R.string.reminder_status_active
         ReminderStatus.PERMISSION_REQUIRED -> R.string.reminder_status_permission_required
         ReminderStatus.TRIGGERED -> R.string.reminder_status_triggered

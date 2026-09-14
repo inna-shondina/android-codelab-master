@@ -9,6 +9,7 @@ import com.sap.codelab.location.MapLibreLocationPicker
 import com.sap.codelab.repository.Database
 import com.sap.codelab.repository.MemoRepository
 import com.sap.codelab.repository.RoomMemoRepository
+import com.sap.codelab.reminder.AndroidCurrentLocationProvider
 import com.sap.codelab.reminder.AndroidMemoNotificationPublisher
 import com.sap.codelab.reminder.AndroidProximityReminderScheduler
 import com.sap.codelab.reminder.AndroidReminderPermissionChecker
@@ -30,11 +31,16 @@ internal class AppContainer(context: Context) {
 
     val memoRepository: MemoRepository = RoomMemoRepository(database.getMemoDao())
     val reminderPermissionChecker = AndroidReminderPermissionChecker(context)
+    private val currentLocationProvider = AndroidCurrentLocationProvider(
+        context,
+        reminderPermissionChecker
+    )
     val reminderManager = ReminderManager(
         memoRepository = memoRepository,
         scheduler = AndroidProximityReminderScheduler(context, reminderPermissionChecker),
         notificationPublisher = AndroidMemoNotificationPublisher(context),
-        permissionChecker = reminderPermissionChecker
+        permissionChecker = reminderPermissionChecker,
+        currentLocationProvider = currentLocationProvider
     )
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val viewModelFactory = MemoViewModelFactory(memoRepository, reminderManager)

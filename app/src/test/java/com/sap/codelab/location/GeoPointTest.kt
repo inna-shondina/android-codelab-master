@@ -20,4 +20,12 @@ internal class GeoPointTest {
     fun `longitude outside world bounds is rejected`() {
         GeoPoint(0.0, -180.0001)
     }
+
+    @Test
+    fun `distance uses great circle calculation`() {
+        val sofia = GeoPoint(42.6977, 23.3219)
+        val pointAboutOneHundredMetresNorth = GeoPoint(42.6986, 23.3219)
+
+        assertEquals(100.0, sofia.distanceTo(pointAboutOneHundredMetresNorth), 1.0)
+    }
 }
