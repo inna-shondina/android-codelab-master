@@ -19,6 +19,18 @@ stateDiagram-v2
     ERROR --> ACTIVE: successful retry while outside
 ```
 
+## State semantics
+
+| State | Meaning | Restoration behaviour |
+| --- | --- | --- |
+| `PENDING` | The memo was persisted but initial registration has not completed. | Reevaluate permissions and the current location, then schedule again. |
+| `WAITING_FOR_EXIT` | The alert is scheduled, but an enter event must not notify until an exit has been observed. | Reschedule without reevaluating the current location. |
+| `ACTIVE` | The alert is scheduled and the next enter event may notify. | Reschedule without changing the state. |
+| `PERMISSION_REQUIRED` | At least one required location or notification permission is unavailable. No alert remains scheduled. | Retry registration when restoration runs. |
+| `ERROR` | Android failed to register the proximity alert. | Retry registration when restoration runs. |
+| `TRIGGERED` | The one-shot notification was delivered and the alert was removed. | Do not restore. |
+| `INACTIVE` | A migrated legacy memo has no user-selected location. | Never register an alert. |
+
 ## Creating a memo inside its radius
 
 After all required permissions are available, the app asks Android for a current GPS fix before registering the proximity alert. If that fix is within the inclusive 200-metre radius, the memo is persisted as `WAITING_FOR_EXIT`.
@@ -34,9 +46,11 @@ If Android cannot provide a current fix within five seconds, the reminder is arm
 - `PENDING`, `PERMISSION_REQUIRED`, and `ERROR` are reevaluated against the current position when registration is retried.
 - `TRIGGERED`, `INACTIVE`, and completed memos are not registered.
 
+Restoration runs when the application process is created, when the home screen resumes, after `BOOT_COMPLETED`, and after `MY_PACKAGE_REPLACED`. If required permissions are missing, registration cancels any existing platform alert and persists `PERMISSION_REQUIRED`; this state is distinct from the permanent legacy `INACTIVE` state.
+
 ## Verification
 
-Unit tests cover state transitions and restoration. The GPX E2E suite covers both important device flows:
+Local unit tests cover state transitions and restoration. The GPX E2E suite covers both important device flows:
 
 1. Start outside, create a memo, enter the radius, and receive one notification.
 2. Start inside, create a memo, verify that no notification is posted, exit the radius, return, and then receive one notification.
